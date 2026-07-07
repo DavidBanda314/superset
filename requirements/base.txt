@@ -276,7 +276,7 @@ packaging==25.0
     #   shillelagh
 pandas==2.1.4
     # via apache-superset (pyproject.toml)
-paramiko==3.5.1
+paramiko==5.0.0
     # via
     #   apache-superset (pyproject.toml)
     #   sshtunnel
