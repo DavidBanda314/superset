@@ -23,6 +23,14 @@ from io import StringIO
 from typing import TYPE_CHECKING
 
 import paramiko
+
+# Compatibility shim: paramiko 5.0+ removed DSSKey (DSA support dropped).
+# sshtunnel 0.4.0 still references paramiko.DSSKey in get_keys(); providing a
+# None stub prevents AttributeError and causes the key-scan loop to safely skip
+# any DSA key files it encounters.
+if not hasattr(paramiko, "DSSKey"):
+    paramiko.DSSKey = None  # type: ignore[attr-defined]
+
 import sshtunnel
 from flask import Flask
 from paramiko import (
