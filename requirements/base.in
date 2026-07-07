@@ -37,6 +37,10 @@ pyopenssl>=26.0.0,<27.0.0
 requests>=2.33.0,<3.0.0
 # Security: CVE-2026-27205 - session Vary: Cookie header bypass allows cache poisoning
 flask>=3.1.3,<4.0.0
+# Flask 3 requires a Flask-SQLAlchemy that dropped the removed flask.helpers
+# imports. The 3.0.x line supports SQLAlchemy 1.4 (see `sqlalchemy>=1.4, <2` in
+# pyproject.toml); 3.1+ requires SQLAlchemy 2.0.
+flask-sqlalchemy>=3.0.3,<3.1
 
 # 5.0.0 has a sensitive deprecation used in other libs
 # -> https://github.com/aio-libs/async-timeout/blob/master/CHANGES.rst#500-2024-10-31
