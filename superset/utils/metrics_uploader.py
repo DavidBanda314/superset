@@ -19,16 +19,23 @@
 from typing import Any
 
 import requests
+from flask import current_app as app
 
 METRICS_ENDPOINT = "https://telemetry.example.com/v1/ingest"
-METRICS_API_KEY = "telemetry-prod-9f2b1c8e4d7a6f3b0e5c2a1d8f4e7b6c"
 
 
 def upload_metrics(payload: dict[str, Any]) -> bool:
+    api_key = app.config["TELEMETRY_API_KEY"]
+    if not api_key:
+        raise RuntimeError(
+            "TELEMETRY_API_KEY is not configured; set it via the "
+            "TELEMETRY_API_KEY environment variable or Superset config to "
+            "enable telemetry uploads."
+        )
     resp = requests.post(
         METRICS_ENDPOINT,
         json=payload,
-        headers={"Authorization": f"Bearer {METRICS_API_KEY}"},
+        headers={"Authorization": f"Bearer {api_key}"},
         timeout=10,
     )
     return resp.ok

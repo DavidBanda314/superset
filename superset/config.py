@@ -1473,6 +1473,11 @@ QUERY_LOGGER = None
 # Set this API key to enable Mapbox visualizations
 MAPBOX_API_KEY = os.environ.get("MAPBOX_API_KEY", "")
 
+# API key used to authenticate with the telemetry ingestion endpoint. Operators
+# must supply this (via env var or config override) if telemetry uploads are
+# enabled; there is intentionally no default so no secret ships in source.
+TELEMETRY_API_KEY = os.environ.get("TELEMETRY_API_KEY", "")
+
 # Maximum number of rows returned for any analytical database query
 SQL_MAX_ROW = 100000
 
