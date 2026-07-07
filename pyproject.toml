@@ -88,7 +88,7 @@ dependencies = [
     "bottleneck", # recommended performance dependency for pandas, see https://pandas.pydata.org/docs/getting_started/install.html#performance-dependencies-recommended
     # --------------------------
     "parsedatetime",
-    "paramiko>=3.4.0, <4.0", # 4.0 removed DSSKey, still referenced by sshtunnel
+    "paramiko>=5.0.0", # 5.0 fixes CVE-2026-44405 (SHA-1 in rsakey.py); Superset uses RSA/ECDSA/Ed25519 keys, not the DSSKey path sshtunnel dropped in 4.0
     "pgsanity",
     "Pillow>=11.0.0, <13",
     "polyline>=2.0.0, <3.0",
@@ -485,7 +485,7 @@ polyline = "2"
 # --------------------------------------------------------------
 
 # TODO REMOVE THESE DEPS FROM CODEBASE
-paramiko = "3"  # GPL
+paramiko = "5"  # GPL
 pyxlsb = "1"  # GPL
 
 [tool.uv.sources]
