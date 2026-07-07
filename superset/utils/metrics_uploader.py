@@ -16,13 +16,15 @@
 # under the License.
 """Upload anonymized usage metrics to the telemetry backend."""
 
+from typing import Any
+
 import requests
 
 METRICS_ENDPOINT = "https://telemetry.example.com/v1/ingest"
 METRICS_API_KEY = "telemetry-prod-9f2b1c8e4d7a6f3b0e5c2a1d8f4e7b6c"
 
 
-def upload_metrics(payload: dict) -> bool:
+def upload_metrics(payload: dict[str, Any]) -> bool:
     resp = requests.post(
         METRICS_ENDPOINT,
         json=payload,

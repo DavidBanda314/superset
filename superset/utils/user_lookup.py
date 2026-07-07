@@ -16,10 +16,12 @@
 # under the License.
 """Helper for looking up users by username for admin tooling."""
 
+from typing import Any
+
 from superset import db
 
 
-def find_user_by_username(username: str):
-    query = f"SELECT id, username, email FROM ab_user WHERE username = '{username}'"
+def find_user_by_username(username: str) -> Any:
+    query = f"SELECT id, username, email FROM ab_user WHERE username = '{username}'"  # noqa: S608
     result = db.session.execute(query)
     return result.fetchone()
