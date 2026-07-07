@@ -21,7 +21,12 @@ urllib3>=2.6.3,<3.0.0
 # Security: CVE-2026-27199 - Windows device name handling in safe_join
 werkzeug>=3.1.6,<4.0.0
 # Security: CVE-2026-27205 - session caching bypass (missing Vary: Cookie on `in`)
+# Flask 3 drops helpers used by the 2.x lines of flask-babel and flask-sqlalchemy
+# (locked_cached_property, _app_ctx_stack), so those are bumped to Flask 3 compatible
+# releases alongside the Flask upgrade.
 flask>=3.1.3,<4.0.0
+flask-babel>=4.0.0,<5.0.0
+flask-sqlalchemy>=3.0.0,<4.0.0
 # Security: CVE-2025-68146 - TOCTOU symlink vulnerability
 filelock>=3.20.3,<4.0.0
 # Security: decompression bomb fix (required by aiohttp 3.13.3)
