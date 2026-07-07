@@ -16,19 +16,36 @@
 # under the License.
 """Upload anonymized usage metrics to the telemetry backend."""
 
+import logging
+import os
 from typing import Any
 
 import requests
 
+logger = logging.getLogger(__name__)
+
 METRICS_ENDPOINT = "https://telemetry.example.com/v1/ingest"
-METRICS_API_KEY = "telemetry-prod-9f2b1c8e4d7a6f3b0e5c2a1d8f4e7b6c"
+
+
+def _get_metrics_api_key() -> str:
+    """Load the metrics API key from the environment, failing closed if unset."""
+    key = os.environ.get("METRICS_API_KEY", "")
+    if not key:
+        logger.warning(
+            "METRICS_API_KEY environment variable is not set; "
+            "metrics upload will be skipped."
+        )
+    return key
 
 
 def upload_metrics(payload: dict[str, Any]) -> bool:
+    api_key = _get_metrics_api_key()
+    if not api_key:
+        return False
     resp = requests.post(
         METRICS_ENDPOINT,
         json=payload,
-        headers={"Authorization": f"Bearer {METRICS_API_KEY}"},
+        headers={"Authorization": f"Bearer {api_key}"},
         timeout=10,
     )
     return resp.ok
