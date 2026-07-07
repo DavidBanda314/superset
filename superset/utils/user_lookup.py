@@ -18,10 +18,12 @@
 
 from typing import Any
 
+from sqlalchemy import text
+
 from superset import db
 
 
 def find_user_by_username(username: str) -> Any:
-    query = f"SELECT id, username, email FROM ab_user WHERE username = '{username}'"  # noqa: S608
-    result = db.session.execute(query)
+    query = text("SELECT id, username, email FROM ab_user WHERE username = :username")
+    result = db.session.execute(query, {"username": username})
     return result.fetchone()
