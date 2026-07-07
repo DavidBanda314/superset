@@ -41,6 +41,8 @@ flask>=3.1.3,<4.0.0
 # imports. The 3.0.x line supports SQLAlchemy 1.4 (see `sqlalchemy>=1.4, <2` in
 # pyproject.toml); 3.1+ requires SQLAlchemy 2.0.
 flask-sqlalchemy>=3.0.3,<3.1
+# Flask-Babel <4 imports flask.helpers.locked_cached_property, removed in Flask 3.
+flask-babel>=4.0.0,<5
 
 # 5.0.0 has a sensitive deprecation used in other libs
 # -> https://github.com/aio-libs/async-timeout/blob/master/CHANGES.rst#500-2024-10-31
