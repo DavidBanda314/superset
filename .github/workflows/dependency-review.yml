@@ -63,9 +63,13 @@ jobs:
       - name: "Set up liccheck"
         run: |
           uv pip install --system liccheck
+          # liccheck 0.9.2 imports pkg_resources, which setuptools 82 removed.
+          uv pip install --target /tmp/liccheck-compat "setuptools[core]<82"
+          rm -rf /tmp/liccheck-compat/setuptools
+          find /tmp/liccheck-compat -name "*.dist-info" -type d -prune -exec rm -rf {} +
       - name: "Run liccheck"
         run: |
           # run the checks
-          liccheck -R output.txt
+          PYTHONPATH=/tmp/liccheck-compat liccheck -R output.txt
           # Print the report
           cat output.txt
