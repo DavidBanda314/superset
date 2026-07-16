@@ -235,7 +235,7 @@ development = [
     "pyfakefs",
     "pyinstrument>=5.1.2,<6",
     "pylint",
-    "pytest<8.0.0", # hairy issue with pytest >=8 where current_app proxies are not set in time
+    "pytest>=9.0.3", # >=9.0.3 required for PYSEC-2026-1845 (predictable /tmp dir local DoS)
     "pytest-asyncio",
     "pytest-cov",
     "pytest-mock",
