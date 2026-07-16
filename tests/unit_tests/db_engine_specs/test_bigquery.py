@@ -645,10 +645,15 @@ def _patch_bq_fetch_deps(
     """Helper to patch Flask g and current_app for BigQuery fetch_data tests."""
     flask_g = mocker.patch("superset.db_engine_specs.bigquery.g")
     app = mocker.patch("superset.db_engine_specs.bigquery.current_app")
-    # Make current_app truthy and .config.get() return a plain int
+    # Ensure fetch_data takes the in-context branches deterministically,
+    # independent of any ambient Flask app/request context.
+    mocker.patch("superset.db_engine_specs.bigquery.has_app_context", return_value=True)
+    mocker.patch(
+        "superset.db_engine_specs.bigquery.has_request_context", return_value=True
+    )
+    # Make current_app truthy; config is accessed via subscript in fetch_data.
     app.__bool__ = mock.Mock(return_value=True)
-    app.config = mock.MagicMock()
-    app.config.get = mock.Mock(return_value=max_mb)
+    app.config = {"BQ_FETCH_MAX_MB": max_mb}
     return flask_g, app
 
 
