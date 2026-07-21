@@ -386,6 +386,7 @@
     "npm": "^11.13.0"
   },
   "overrides": {
+    "shell-quote": "^1.8.5",
     "uuid": "$uuid",
     "core-js": "^3.38.1",
     "dompurify": "^3.4.11",
