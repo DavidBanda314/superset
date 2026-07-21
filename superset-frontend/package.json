@@ -387,6 +387,7 @@
   },
   "overrides": {
     "uuid": "$uuid",
+    "axios": "^1.18.0",
     "core-js": "^3.38.1",
     "dompurify": "^3.4.11",
     "esbuild": "^0.28.1",
