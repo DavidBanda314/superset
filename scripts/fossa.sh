@@ -17,9 +17,25 @@
 # limitations under the License.
 #
 
-# This is the recommended way to install FOSSA's cli per the docs:
-# https://docs.fossa.com/docs/generic-ci
-curl -s -H 'Cache-Control: no-cache' https://raw.githubusercontent.com/fossas/fossa-cli/master/install.sh | sudo bash
+set -eu
+
+# Install FOSSA's cli from a pinned, checksum-verified copy of the installer
+# (https://docs.fossa.com/docs/generic-ci recommends piping it straight into a
+# shell, which would execute unverified third-party code as root).
+FOSSA_INSTALLER_COMMIT="5f03c78d3080e853dc8c0f71e46d5c686f2f4a86"
+FOSSA_INSTALLER_SHA256="b0f3448d9564753a1238c3bd9278d6d053befd148a16e82f91e96f0c6fb40e16"
+FOSSA_BINDIR="${FOSSA_BINDIR:-${HOME}/.local/bin}"
+
+INSTALLER="$(mktemp)"
+trap 'rm -f "${INSTALLER}"' EXIT
+curl -fsSL -H 'Cache-Control: no-cache' \
+  "https://raw.githubusercontent.com/fossas/fossa-cli/${FOSSA_INSTALLER_COMMIT}/install.sh" \
+  -o "${INSTALLER}"
+echo "${FOSSA_INSTALLER_SHA256}  ${INSTALLER}" | sha256sum --check --status
+
+mkdir -p "${FOSSA_BINDIR}"
+bash "${INSTALLER}" -b "${FOSSA_BINDIR}"
+export PATH="${FOSSA_BINDIR}:${PATH}"
 
 # This key is a push-only API key, also recommended for public projects
 # https://docs.fossa.com/docs/api-reference#section-push-only-api-token
