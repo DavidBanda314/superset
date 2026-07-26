@@ -839,7 +839,12 @@ init:
     firstname: Superset
     lastname: Admin
     email: admin@superset.com
-    password: admin
+    # -- Password for the admin user. Must be set explicitly, otherwise the init
+    # job fails. It is published to the init job as the `ADMIN_PASSWORD`
+    # environment variable, sourced from the chart's env secret. Alternatively,
+    # leave this empty and provide `ADMIN_PASSWORD` yourself through
+    # `extraSecretEnv` or `envFromSecret`/`envFromSecrets`.
+    password: ""
   # -- List of initContainers
   # @default -- a container waiting for postgres
   initContainers:
@@ -880,13 +885,17 @@ init:
     echo "Initializing roles..."
     superset init
     {{ if .Values.init.createAdmin }}
+    if [ -z "${ADMIN_PASSWORD:-}" ]; then
+      echo "ADMIN_PASSWORD is empty: set init.adminUser.password, or provide ADMIN_PASSWORD via extraSecretEnv or envFromSecret(s)." >&2
+      exit 1
+    fi
     echo "Creating admin user..."
     superset fab create-admin \
                     --username {{ .Values.init.adminUser.username }} \
                     --firstname {{ .Values.init.adminUser.firstname }} \
                     --lastname {{ .Values.init.adminUser.lastname }} \
                     --email {{ .Values.init.adminUser.email }} \
-                    --password {{ .Values.init.adminUser.password }} \
+                    --password "$ADMIN_PASSWORD" \
                     || true
     {{- end }}
     {{ if .Values.init.loadExamples }}
