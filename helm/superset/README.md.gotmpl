@@ -47,6 +47,22 @@ On helm this can be set on `extraSecretEnv.SUPERSET_SECRET_KEY` or `configOverri
 
 ## Upgrade Notes
 
+### Redis TLS certificate verification enabled by default (behavior change)
+
+When `supersetNode.connections.redis_ssl.enabled` is true, the chart previously defaulted to `ssl_cert_reqs: CERT_NONE`, which told `redis-py` not to validate the Redis server certificate, leaving `rediss://` connections open to man-in-the-middle attacks. The default is `CERT_REQUIRED`.
+
+If your Redis uses a certificate signed by a private CA, supply the CA bundle (mount it into the pods, for example via `extraVolumes`/`extraVolumeMounts`) and set:
+
+```yaml
+supersetNode:
+  connections:
+    redis_ssl:
+      enabled: true
+      ssl_ca_certs: /path/to/ca.pem
+```
+
+As an explicit opt-out for self-signed certificates in local development, set `ssl_cert_reqs: CERT_NONE`, which disables server authentication.
+
 ### Kubernetes recommended labels (breaking)
 
 This chart labels and selects workloads using the [Kubernetes recommended labels](https://kubernetes.io/docs/concepts/overview/working-with-objects/common-labels/) (`app.kubernetes.io/*`) instead of the legacy `app`/`release` labels. A Deployment's `spec.selector.matchLabels` is immutable, so `helm upgrade` against a release created before this change fails with a `field is immutable` error.

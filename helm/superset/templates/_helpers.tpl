@@ -122,6 +122,9 @@ REDIS_BASE_URL=f"{env('REDIS_DRIVER') or env('REDIS_PROTO')}://{env('REDIS_HOST'
 # Redis URL Params
 {{- if .Values.supersetNode.connections.redis_ssl.enabled }}
 REDIS_URL_PARAMS = f"?ssl_cert_reqs={env('REDIS_SSL_CERT_REQS')}"
+{{- if .Values.supersetNode.connections.redis_ssl.ssl_ca_certs }}
+REDIS_URL_PARAMS += f"&ssl_ca_certs={env('REDIS_SSL_CA_CERTS')}"
+{{- end }}
 {{- else }}
 REDIS_URL_PARAMS = ""
 {{- end}}
@@ -167,6 +170,9 @@ RESULTS_BACKEND = RedisCache(
       {{- if .Values.supersetNode.connections.redis_ssl.enabled }}
       ssl=True,
       ssl_cert_reqs=env('REDIS_SSL_CERT_REQS'),
+      {{- if .Values.supersetNode.connections.redis_ssl.ssl_ca_certs }}
+      ssl_ca_certs=env('REDIS_SSL_CA_CERTS'),
+      {{- end }}
       {{- end }}
 )
 

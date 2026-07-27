@@ -282,7 +282,14 @@ supersetNode:
     # Update following for using Redis with SSL
     redis_ssl:
       enabled: false
-      ssl_cert_reqs: CERT_NONE
+      # -- Certificate verification mode used when `redis_ssl.enabled` is true.
+      # Keep `CERT_REQUIRED` so the Redis server certificate is validated. Set to
+      # `CERT_NONE` only as an explicit opt-out for self-signed/local development,
+      # which disables server authentication and allows MITM on the Redis traffic.
+      ssl_cert_reqs: CERT_REQUIRED
+      # -- Path to a CA bundle (mounted into the pods, e.g. via `extraVolumes`) used
+      # to validate the Redis server certificate. Leave empty to use the system CAs.
+      ssl_ca_certs: ""
     redis_driver: ""
     # You need to change below configuration incase bringing own PostgresSQL instance and also set postgresql.enabled:false
     # -- Database type for Superset metadata (Supported types: "postgresql", "mysql")
