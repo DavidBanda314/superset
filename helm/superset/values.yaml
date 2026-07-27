@@ -290,7 +290,13 @@ supersetNode:
     db_host: "{{ .Release.Name }}-postgresql"
     db_port: "5432"
     db_user: superset
-    db_pass: superset
+    # -- Metadata database password. Has no default: you must supply it at
+    # install time (e.g. `--set supersetNode.connections.db_pass=...` or a
+    # values override), matching `postgresql.auth.password` when using the
+    # bundled PostgreSQL, or supply `DB_PASS` yourself via `extraSecretEnv` /
+    # `extraEnvRaw`. Rendering fails if it is empty and no alternative is
+    # provided, to avoid shipping a well-known default credential.
+    db_pass: ""
     db_name: superset
   env: {}
   # -- If true, forces deployment to reload on each upgrade
@@ -929,8 +935,11 @@ postgresql:
     existingSecret:
     ## PostgreSQL name for a custom user to create
     username: superset
-    ## PostgreSQL password for the custom user to create. Ignored if `auth.existingSecret` with key `password` is provided
-    password: superset
+    ## PostgreSQL password for the custom user to create. Ignored if `auth.existingSecret` with key `password` is provided.
+    ## No default is shipped to avoid a well-known credential: supply it at install time (matching
+    ## `supersetNode.connections.db_pass`) or use `auth.existingSecret`. If left empty the bundled
+    ## PostgreSQL subchart generates a random password on first install.
+    password: ""
     ## PostgreSQL name for a custom database to create
     database: superset
 
@@ -985,8 +994,9 @@ redis:
     existingSecret: ""
     ## Name of the key containing the secret.
     existingSecretKey: ""
-    ## Redis password
-    password: superset
+    ## Redis password. Only used when `auth.enabled` is true. No default is shipped to avoid a
+    ## well-known credential: supply it at install time or use `auth.existingSecret`.
+    password: ""
   ##
   ## Master configuration
   ##
