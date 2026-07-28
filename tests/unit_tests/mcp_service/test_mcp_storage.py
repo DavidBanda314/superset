@@ -182,10 +182,40 @@ def test_create_redis_store_handles_ssl_url():
             # Verify Redis client was created with SSL params
             call_kwargs = mock_redis_class.call_args[1]
             assert call_kwargs["ssl"] is True
-            assert call_kwargs["ssl_cert_reqs"] == "none"
+            assert call_kwargs["ssl_cert_reqs"] == "required"
+            assert call_kwargs["ssl_ca_certs"] is None
             assert call_kwargs["host"] == "redis.example.com"
             assert call_kwargs["port"] == 6380
             assert call_kwargs["db"] == 1
+
+
+def test_create_redis_store_ssl_cert_reqs_configurable():
+    """_create_redis_store allows opting out of cert verification via config."""
+    store_config = {
+        "CACHE_REDIS_URL": "rediss://:password@redis.example.com:6380/1",
+        "CACHE_REDIS_SSL_CERT_REQS": "none",
+        "CACHE_REDIS_SSL_CA_CERTS": "/path/to/ca.crt",
+    }
+
+    mock_redis_store = MagicMock()
+    mock_redis_client = MagicMock()
+
+    with patch(
+        "key_value.aio.stores.redis.RedisStore",
+        return_value=mock_redis_store,
+    ):
+        with patch(
+            "superset.mcp_service.storage.Redis",
+            return_value=mock_redis_client,
+        ) as mock_redis_class:
+            from superset.mcp_service.storage import _create_redis_store
+
+            result = _create_redis_store(store_config, wrap=False)
+
+            assert result is mock_redis_store
+            call_kwargs = mock_redis_class.call_args[1]
+            assert call_kwargs["ssl_cert_reqs"] == "none"
+            assert call_kwargs["ssl_ca_certs"] == "/path/to/ca.crt"
 
 
 def test_create_redis_store_non_ssl_url_no_ssl_param():

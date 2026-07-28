@@ -242,6 +242,11 @@ MCP_STORE_CONFIG: dict[str, Any] = {
     "CACHE_REDIS_URL": None,  # Redis URL, e.g., "redis://localhost:6379/0"
     # Wrapper class that prefixes all keys. Each consumer provides their own prefix.
     "WRAPPER_TYPE": "key_value.aio.wrappers.prefix_keys.PrefixKeysWrapper",
+    # TLS settings, used when CACHE_REDIS_URL uses the rediss:// scheme.
+    # "required" verifies the server certificate; use CACHE_REDIS_SSL_CA_CERTS
+    # for private CAs (e.g. ElastiCache) rather than disabling verification.
+    "CACHE_REDIS_SSL_CERT_REQS": "required",
+    "CACHE_REDIS_SSL_CA_CERTS": None,
     # EventStore settings (for multi-pod session management)
     "event_store_max_events": 100,  # Keep last 100 events per session
     "event_store_ttl": 3600,  # Events expire after 1 hour

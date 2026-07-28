@@ -92,6 +92,8 @@ def _create_redis_store(
     Create a RedisStore, optionally wrapped with a prefix.
 
     Handles SSL/TLS connections (rediss:// scheme) for cloud deployments.
+    Certificate verification defaults to "required" and is configurable via
+    CACHE_REDIS_SSL_CERT_REQS / CACHE_REDIS_SSL_CA_CERTS in the store config.
 
     Args:
         store_config: MCP_STORE_CONFIG dict (Redis URL, wrapper type)
@@ -132,9 +134,10 @@ def _create_redis_store(
 
         redis_client: Redis[str]
         if use_ssl:
-            # For ElastiCache with self-signed certs, disable cert verification.
-            # NOTE: ssl_cert_reqs="none" disables certificate verification.
-            # Do not use Python None - that would default to CERT_REQUIRED.
+            # Certificate verification is required by default. Deployments using
+            # self-signed certs (e.g. ElastiCache) can supply a private CA via
+            # CACHE_REDIS_SSL_CA_CERTS, or explicitly opt out of verification
+            # with CACHE_REDIS_SSL_CERT_REQS="none".
             redis_client = Redis(
                 host=parsed.hostname or "localhost",
                 port=parsed.port or 6379,
@@ -143,7 +146,8 @@ def _create_redis_store(
                 password=parsed.password,
                 decode_responses=True,
                 ssl=True,
-                ssl_cert_reqs="none",
+                ssl_cert_reqs=store_config.get("CACHE_REDIS_SSL_CERT_REQS", "required"),
+                ssl_ca_certs=store_config.get("CACHE_REDIS_SSL_CA_CERTS"),
             )
             logger.info("Created async Redis client with SSL")
         else:
