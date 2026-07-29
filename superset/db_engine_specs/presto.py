@@ -96,6 +96,33 @@ CONNECTION_UNKNOWN_DATABASE_ERROR = re.compile(
 logger = logging.getLogger(__name__)
 
 
+def quote_identifier(name: str) -> str:
+    """
+    Quote an identifier for Presto/Trino, escaping any embedded double quotes.
+
+        >>> quote_identifier('my_table')
+        '"my_table"'
+        >>> quote_identifier('ev"il')
+        '"ev""il"'
+
+    :param name: the identifier to quote
+    :return: the quoted identifier
+    """
+    escaped = name.replace('"', '""')
+    return f'"{escaped}"'
+
+
+def quote_literal(value: Any) -> str:
+    """
+    Quote a value as a SQL string literal, escaping any embedded single quotes.
+
+    :param value: the value to quote
+    :return: the quoted string literal
+    """
+    escaped = str(value).replace("'", "''")
+    return f"'{escaped}'"
+
+
 def get_children(column: ResultSetColumnType) -> list[ResultSetColumnType]:
     """
     Get the children of a complex Presto type (row or array).
@@ -486,19 +513,19 @@ class PrestoBaseEngineSpec(BaseEngineSpec, metaclass=ABCMeta):
             order
         :param filters: dict of field name and filter value combinations
         """
-        limit_clause = f"LIMIT {limit}" if limit else ""
+        limit_clause = f"LIMIT {int(limit)}" if limit else ""
         order_by_clause = ""
         if order_by:
             l = []  # noqa: E741
             for field, desc in order_by:
-                l.append(field + " DESC" if desc else "")
+                l.append(quote_identifier(field) + " DESC" if desc else "")
             order_by_clause = "ORDER BY " + ", ".join(l)
 
         where_clause = ""
         if filters:
             l = []  # noqa: E741
             for field, value in filters.items():
-                l.append(f"{field} = '{value}'")
+                l.append(f"{quote_identifier(field)} = {quote_literal(value)}")
             where_clause = "WHERE " + " AND ".join(l)
 
         # Partition select syntax changed in v0.199, so check here.
@@ -507,13 +534,15 @@ class PrestoBaseEngineSpec(BaseEngineSpec, metaclass=ABCMeta):
 
         if presto_version and Version(presto_version) < Version("0.199"):
             full_table_name = (
-                f"{table.schema}.{table.table}" if table.schema else table.table
+                f"{quote_identifier(table.schema)}.{quote_identifier(table.table)}"
+                if table.schema
+                else quote_identifier(table.table)
             )
             partition_select_clause = f"SHOW PARTITIONS FROM {full_table_name}"
         else:
-            system_table_name = f'"{table.table}$partitions"'
+            system_table_name = quote_identifier(f"{table.table}$partitions")
             full_table_name = (
-                f"{table.schema}.{system_table_name}"
+                f"{quote_identifier(table.schema)}.{system_table_name}"
                 if table.schema
                 else system_table_name
             )
@@ -1359,7 +1388,12 @@ class PrestoEngineSpec(PrestoBaseEngineSpec):
 
         with database.get_raw_connection(schema=schema) as conn:
             cursor = conn.cursor()
-            sql = f"SHOW CREATE VIEW {schema}.{table}"
+            full_table_name = (
+                f"{quote_identifier(schema)}.{quote_identifier(table)}"
+                if schema
+                else quote_identifier(table)
+            )
+            sql = f"SHOW CREATE VIEW {full_table_name}"
             try:
                 cls.execute(cursor, sql, database)
                 rows = cls.fetch_data(cursor, 1)
