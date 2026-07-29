@@ -282,6 +282,11 @@ WEBDRIVER_BASEURL = "http://superset:8088" # When running using docker compose u
 WEBDRIVER_BASEURL_USER_FRIENDLY = "http://localhost:8088"
 ```
 
+Superset ships with no SMTP credentials: `SMTP_USER` and `SMTP_PASSWORD` default to the `SMTP_USER`
+and `SMTP_PASSWORD` environment variables and to the empty string when those are unset, in which
+case the SMTP login step is skipped. Set them in `superset_config.py` as shown above, or supply them
+through the environment to keep the credentials out of your configuration file.
+
 You also need
 to specify on behalf of which username to render the dashboards. In general, dashboards and charts
 are not accessible to unauthorized requests, that is why the worker needs to take over credentials

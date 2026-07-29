@@ -37,7 +37,13 @@ logger = logging.getLogger(__name__)
 
 
 class TestEmailSmtp(SupersetTestCase):
-    SMTP_CONFIG_KEYS = ("SMTP_SSL", "SMTP_SSL_SERVER_AUTH", "SMTP_STARTTLS")
+    SMTP_CONFIG_KEYS = (
+        "SMTP_SSL",
+        "SMTP_SSL_SERVER_AUTH",
+        "SMTP_STARTTLS",
+        "SMTP_USER",
+        "SMTP_PASSWORD",
+    )
 
     def setUp(self) -> None:
         self._original_smtp_config = {
@@ -200,6 +206,8 @@ class TestEmailSmtp(SupersetTestCase):
         mock_smtp.return_value = mock.Mock()
         mock_smtp_ssl.return_value = mock.Mock()
         msg = MIMEMultipart()
+        current_app.config["SMTP_USER"] = "smtp_user"
+        current_app.config["SMTP_PASSWORD"] = "smtp_password"  # noqa: S105
         utils.send_mime_email("from", "to", msg, current_app.config, dryrun=False)
         mock_smtp.assert_called_with(
             current_app.config["SMTP_HOST"],
