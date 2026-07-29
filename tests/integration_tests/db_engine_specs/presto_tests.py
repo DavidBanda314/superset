@@ -965,7 +965,7 @@ class TestPrestoDbEngineSpec(SupersetTestCase):
         table = "table"
         result = PrestoEngineSpec.get_create_view(database, schema=schema, table=table)
         assert result == "a"
-        mock_execute.assert_called_once_with(f"SHOW CREATE VIEW {schema}.{table}")
+        mock_execute.assert_called_once_with(f'SHOW CREATE VIEW "{schema}"."{table}"')
 
     def test_get_create_view_exception(self):
         mock_execute = mock.MagicMock(side_effect=Exception())

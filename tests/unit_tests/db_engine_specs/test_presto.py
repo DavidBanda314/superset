@@ -410,3 +410,46 @@ def test_extract_errors_maps_401_to_access_denied() -> None:
     result = PrestoEngineSpec.extract_errors(Exception(msg))
     assert len(result) == 1
     assert result[0].error_type == SupersetErrorType.CONNECTION_ACCESS_DENIED_ERROR
+
+
+def test_get_create_view_quotes_identifiers(mocker: MockerFixture) -> None:
+    """
+    Test that ``get_create_view`` quotes the schema and table identifiers.
+    """
+    from superset.db_engine_specs.presto import PrestoEngineSpec
+
+    database = mocker.MagicMock()
+    cursor = database.get_raw_connection().__enter__().cursor()
+    cursor.fetchall.return_value = [["CREATE VIEW ..."]]
+
+    PrestoEngineSpec.get_create_view(
+        database,
+        schema='ev"il',
+        table="foo UNION ALL SELECT 1",
+    )
+    cursor.execute.assert_called_once_with(
+        'SHOW CREATE VIEW "ev""il"."foo UNION ALL SELECT 1"'
+    )
+
+
+def test_partition_query_quotes_identifiers_and_values() -> None:
+    """
+    Test that ``_partition_query`` quotes identifiers and escapes filter values.
+    """
+    from superset.db_engine_specs.presto import PrestoEngineSpec
+
+    database = mock.MagicMock()
+    database.get_extra.return_value = {}
+
+    sql = PrestoEngineSpec._partition_query(
+        table=Table('ev"il', 'ev"il_schema'),
+        indexes=[],
+        database=database,
+        limit=1,
+        order_by=[("ds", True)],
+        filters={"ds": "2023-01-01' OR '1'='1"},
+    )
+    assert 'SELECT * FROM "ev""il_schema"."ev""il$partitions"' in sql
+    assert """WHERE "ds" = '2023-01-01'' OR ''1''=''1'""" in sql
+    assert 'ORDER BY "ds" DESC' in sql
+    assert "LIMIT 1" in sql
