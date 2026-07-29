@@ -1812,9 +1812,12 @@ FLASK_APP_MUTATOR = None
 SMTP_HOST = "localhost"
 SMTP_STARTTLS = True
 SMTP_SSL = False
-SMTP_USER = "superset"
+# Credentials default to empty (no SMTP authentication) and should be supplied
+# via the environment or `superset_config.py`; an empty user/password pair makes
+# the mailer skip the SMTP login step.
+SMTP_USER = os.environ.get("SMTP_USER", "")
 SMTP_PORT = 25
-SMTP_PASSWORD = "superset"  # noqa: S105
+SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
 SMTP_MAIL_FROM = "superset@superset.com"
 # If True creates a default SSL context with ssl.Purpose.SERVER_AUTH using the
 # default system root CA certificates. This makes STARTTLS/SSL connections to the
