@@ -54,16 +54,46 @@ FEATURE_FLAGS = {
 }
 
 if os.environ.get("SUPERSET_FEATURE_EMBEDDED_SUPERSET", "").strip().lower() == "true":
-    # Disable Talisman so /embedded/<uuid> doesn't return X-Frame-Options:SAMEORIGIN.
-    # Without this, browsers refuse to render Superset inside an iframe from a
-    # different origin (i.e. the embedded SDK use case). Production/CI configures
-    # Talisman with explicit `frame-ancestors`; for the lightweight local stack we
-    # just turn it off.
-    TALISMAN_ENABLED = False
+    # SECURITY WARNING: this block relaxes browser protections to make the
+    # embedded SDK usable from a lightweight local stack. It must NEVER be used
+    # outside a local, non-networked development environment. On any host that is
+    # reachable by untrusted clients these settings expose the deployment to
+    # clickjacking and anonymous data reads.
+
+    # Instead of disabling Talisman globally (which drops X-Frame-Options, HSTS
+    # and the CSP for every response), keep it enabled and only widen
+    # `frame-ancestors` so /embedded/<uuid> can be rendered inside an iframe from
+    # the embedding origin(s). Set SUPERSET_EMBEDDED_FRAME_ANCESTORS to a
+    # space-separated list of origins (defaults to the local dev origin).
+    _frame_ancestors = (
+        os.environ.get("SUPERSET_EMBEDDED_FRAME_ANCESTORS", "").split()
+        or ["'self'", "http://localhost:*", "http://127.0.0.1:*"]
+    )
+
+    def _with_frame_ancestors(talisman_config: dict) -> dict:
+        return {
+            **talisman_config,
+            "content_security_policy": {
+                **talisman_config["content_security_policy"],
+                "frame-ancestors": _frame_ancestors,
+            },
+        }
+
+    # The dev config is used when the app runs in debug mode; override both so the
+    # embedded iframe works regardless of which one is active.
+    TALISMAN_CONFIG = _with_frame_ancestors(TALISMAN_CONFIG)  # noqa: F405
+    TALISMAN_DEV_CONFIG = _with_frame_ancestors(TALISMAN_DEV_CONFIG)  # noqa: F405
 
     # Guest tokens (used by the embedded SDK) inherit the "Public" role's perms.
     # Out of the box Public has zero perms, so embedded dashboards immediately fail
-    # their first call (`/api/v1/me/roles/`) with 403. Mirror Public to Gamma —
-    # the standard read-only viewer role — so the embedded flow can authenticate
-    # and load dashboard data in local dev.
-    PUBLIC_ROLE_LIKE = "Gamma"
+    # their first call (`/api/v1/me/roles/`) with 403. Mirroring Public to Gamma
+    # copies the full read-only viewer permission set onto the anonymous Public
+    # role, granting every unauthenticated visitor dataset/chart reads and
+    # chart-data queries. This is gated behind an explicit opt-in so it never
+    # happens implicitly; prefer granting only the minimum perms the embedded
+    # flow needs to the guest role instead.
+    if (
+        os.environ.get("SUPERSET_LIGHT_ALLOW_PUBLIC_GAMMA", "").strip().lower()
+        == "true"
+    ):
+        PUBLIC_ROLE_LIKE = "Gamma"
