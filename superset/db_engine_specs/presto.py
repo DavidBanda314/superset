@@ -461,6 +461,22 @@ class PrestoBaseEngineSpec(BaseEngineSpec, metaclass=ABCMeta):
         """
         return database.get_df("SHOW FUNCTIONS")["Function"].tolist()
 
+    @staticmethod
+    def _quote_identifier(identifier: str) -> str:
+        """
+        Quote an identifier using Presto/Trino double-quote syntax.
+        """
+        escaped = identifier.replace('"', '""')
+        return f'"{escaped}"'
+
+    @staticmethod
+    def _quote_literal(value: Any) -> str:
+        """
+        Quote a string literal, escaping embedded single quotes.
+        """
+        escaped = str(value).replace("'", "''")
+        return f"'{escaped}'"
+
     @classmethod
     def _partition_query(  # pylint: disable=too-many-arguments,too-many-locals,unused-argument
         cls,
@@ -491,14 +507,17 @@ class PrestoBaseEngineSpec(BaseEngineSpec, metaclass=ABCMeta):
         if order_by:
             l = []  # noqa: E741
             for field, desc in order_by:
-                l.append(field + " DESC" if desc else "")
+                quoted_field = cls._quote_identifier(field)
+                l.append(quoted_field + " DESC" if desc else "")
             order_by_clause = "ORDER BY " + ", ".join(l)
 
         where_clause = ""
         if filters:
             l = []  # noqa: E741
             for field, value in filters.items():
-                l.append(f"{field} = '{value}'")
+                l.append(
+                    f"{cls._quote_identifier(field)} = {cls._quote_literal(value)}"
+                )
             where_clause = "WHERE " + " AND ".join(l)
 
         # Partition select syntax changed in v0.199, so check here.
@@ -506,14 +525,17 @@ class PrestoBaseEngineSpec(BaseEngineSpec, metaclass=ABCMeta):
         presto_version = database.get_extra().get("version")
 
         if presto_version and Version(presto_version) < Version("0.199"):
+            quoted_table = cls._quote_identifier(table.table)
             full_table_name = (
-                f"{table.schema}.{table.table}" if table.schema else table.table
+                f"{cls._quote_identifier(table.schema)}.{quoted_table}"
+                if table.schema
+                else quoted_table
             )
             partition_select_clause = f"SHOW PARTITIONS FROM {full_table_name}"
         else:
-            system_table_name = f'"{table.table}$partitions"'
+            system_table_name = cls._quote_identifier(f"{table.table}$partitions")
             full_table_name = (
-                f"{table.schema}.{system_table_name}"
+                f"{cls._quote_identifier(table.schema)}.{system_table_name}"
                 if table.schema
                 else system_table_name
             )
