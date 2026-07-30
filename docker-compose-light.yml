@@ -23,6 +23,12 @@
 # 1. Start services: docker-compose -f docker-compose-light.yml up
 # 2. Access at: http://localhost:9001 (or NODE_PORT if specified)
 #
+# REQUIRED CREDENTIALS (no defaults - the stack fails fast if unset):
+# The following variables must be provided via the environment or docker/.env
+# (see docker/.env for the local development defaults):
+#   - EXAMPLES_USER, EXAMPLES_PASSWORD  (examples database credentials)
+#   - DATABASE_USER, DATABASE_PASSWORD  (metadata/test database credentials)
+#
 # RUNNING MULTIPLE INSTANCES:
 # - Use different project names: docker-compose -p project1 -f docker-compose-light.yml up
 # - Use different NODE_PORT values: NODE_PORT=9002 docker-compose -p project2 -f docker-compose-light.yml up
@@ -117,8 +123,8 @@ services:
       POSTGRES_DB: superset_light
       EXAMPLES_HOST: db-light
       EXAMPLES_DB: superset_light
-      EXAMPLES_USER: superset
-      EXAMPLES_PASSWORD: superset
+      EXAMPLES_USER: ${EXAMPLES_USER:?EXAMPLES_USER must be set (see docker/.env)}
+      EXAMPLES_PASSWORD: ${EXAMPLES_PASSWORD:?EXAMPLES_PASSWORD must be set (see docker/.env)}
       SUPERSET_CONFIG_PATH: /app/docker/pythonpath_dev/superset_config_docker_light.py
       GITHUB_HEAD_REF: ${GITHUB_HEAD_REF:-}
       GITHUB_SHA: ${GITHUB_SHA:-}
@@ -143,8 +149,8 @@ services:
       POSTGRES_DB: superset_light
       EXAMPLES_HOST: db-light
       EXAMPLES_DB: superset_light
-      EXAMPLES_USER: superset
-      EXAMPLES_PASSWORD: superset
+      EXAMPLES_USER: ${EXAMPLES_USER:?EXAMPLES_USER must be set (see docker/.env)}
+      EXAMPLES_PASSWORD: ${EXAMPLES_PASSWORD:?EXAMPLES_PASSWORD must be set (see docker/.env)}
       SUPERSET_CONFIG_PATH: /app/docker/pythonpath_dev/superset_config_docker_light.py
     healthcheck:
       disable: true
@@ -201,7 +207,7 @@ services:
       DATABASE_HOST: db-light
       DATABASE_DB: test
       POSTGRES_DB: test
-      SUPERSET__SQLALCHEMY_DATABASE_URI: postgresql+psycopg2://superset:superset@db-light:5432/test
+      SUPERSET__SQLALCHEMY_DATABASE_URI: postgresql+psycopg2://${DATABASE_USER:?DATABASE_USER must be set (see docker/.env)}:${DATABASE_PASSWORD:?DATABASE_PASSWORD must be set (see docker/.env)}@db-light:5432/test
       SUPERSET_CONFIG: superset_test_config_light
       PYTHONPATH: /app/pythonpath:/app/docker/pythonpath_dev:/app
 
