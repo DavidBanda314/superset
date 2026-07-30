@@ -53,17 +53,27 @@ FEATURE_FLAGS = {
     },
 }
 
-if os.environ.get("SUPERSET_FEATURE_EMBEDDED_SUPERSET", "").strip().lower() == "true":
-    # Disable Talisman so /embedded/<uuid> doesn't return X-Frame-Options:SAMEORIGIN.
-    # Without this, browsers refuse to render Superset inside an iframe from a
-    # different origin (i.e. the embedded SDK use case). Production/CI configures
-    # Talisman with explicit `frame-ancestors`; for the lightweight local stack we
-    # just turn it off.
-    TALISMAN_ENABLED = False
 
-    # Guest tokens (used by the embedded SDK) inherit the "Public" role's perms.
-    # Out of the box Public has zero perms, so embedded dashboards immediately fail
-    # their first call (`/api/v1/me/roles/`) with 403. Mirror Public to Gamma —
-    # the standard read-only viewer role — so the embedded flow can authenticate
-    # and load dashboard data in local dev.
+def _env_true(name: str) -> bool:
+    return os.environ.get(name, "").strip().lower() == "true"
+
+
+# WARNING: The settings below make the embedded SDK usable from a lightweight
+# local stack by dropping browser protections and granting the anonymous
+# "Public" role broad read access. They MUST NEVER be enabled on any host that
+# is reachable by untrusted clients:
+#   * TALISMAN_ENABLED = False removes X-Frame-Options, HSTS and the CSP from
+#     *every* response (not just /embedded/<uuid>), exposing the whole stack to
+#     clickjacking.
+#   * PUBLIC_ROLE_LIKE = "Gamma" copies the full Gamma permission set onto the
+#     anonymous Public role, letting every unauthenticated visitor read
+#     datasets/charts and issue chart-data queries.
+# Because this file is a copy-paste template for embedding, these are gated
+# behind an explicit opt-in so they never take effect implicitly. Enable them
+# only in a local, non-networked development environment, and prefer granting
+# the guest role the minimum perms the embedded flow needs over widening Public.
+if _env_true("SUPERSET_FEATURE_EMBEDDED_SUPERSET") and _env_true(
+    "SUPERSET_LIGHT_INSECURE_EMBEDDED"
+):
+    TALISMAN_ENABLED = False
     PUBLIC_ROLE_LIKE = "Gamma"
