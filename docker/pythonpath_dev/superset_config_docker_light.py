@@ -53,47 +53,27 @@ FEATURE_FLAGS = {
     },
 }
 
-if os.environ.get("SUPERSET_FEATURE_EMBEDDED_SUPERSET", "").strip().lower() == "true":
-    # SECURITY WARNING: this block relaxes browser protections to make the
-    # embedded SDK usable from a lightweight local stack. It must NEVER be used
-    # outside a local, non-networked development environment. On any host that is
-    # reachable by untrusted clients these settings expose the deployment to
-    # clickjacking and anonymous data reads.
 
-    # Instead of disabling Talisman globally (which drops X-Frame-Options, HSTS
-    # and the CSP for every response), keep it enabled and only widen
-    # `frame-ancestors` so /embedded/<uuid> can be rendered inside an iframe from
-    # the embedding origin(s). Set SUPERSET_EMBEDDED_FRAME_ANCESTORS to a
-    # space-separated list of origins (defaults to the local dev origin).
-    _frame_ancestors = (
-        os.environ.get("SUPERSET_EMBEDDED_FRAME_ANCESTORS", "").split()
-        or ["'self'", "http://localhost:*", "http://127.0.0.1:*"]
-    )
+def _env_true(name: str) -> bool:
+    return os.environ.get(name, "").strip().lower() == "true"
 
-    def _with_frame_ancestors(talisman_config: dict) -> dict:
-        return {
-            **talisman_config,
-            "content_security_policy": {
-                **talisman_config["content_security_policy"],
-                "frame-ancestors": _frame_ancestors,
-            },
-        }
 
-    # The dev config is used when the app runs in debug mode; override both so the
-    # embedded iframe works regardless of which one is active.
-    TALISMAN_CONFIG = _with_frame_ancestors(TALISMAN_CONFIG)  # noqa: F405
-    TALISMAN_DEV_CONFIG = _with_frame_ancestors(TALISMAN_DEV_CONFIG)  # noqa: F405
-
-    # Guest tokens (used by the embedded SDK) inherit the "Public" role's perms.
-    # Out of the box Public has zero perms, so embedded dashboards immediately fail
-    # their first call (`/api/v1/me/roles/`) with 403. Mirroring Public to Gamma
-    # copies the full read-only viewer permission set onto the anonymous Public
-    # role, granting every unauthenticated visitor dataset/chart reads and
-    # chart-data queries. This is gated behind an explicit opt-in so it never
-    # happens implicitly; prefer granting only the minimum perms the embedded
-    # flow needs to the guest role instead.
-    if (
-        os.environ.get("SUPERSET_LIGHT_ALLOW_PUBLIC_GAMMA", "").strip().lower()
-        == "true"
-    ):
-        PUBLIC_ROLE_LIKE = "Gamma"
+# WARNING: The settings below make the embedded SDK usable from a lightweight
+# local stack by dropping browser protections and granting the anonymous
+# "Public" role broad read access. They MUST NEVER be enabled on any host that
+# is reachable by untrusted clients:
+#   * TALISMAN_ENABLED = False removes X-Frame-Options, HSTS and the CSP from
+#     *every* response (not just /embedded/<uuid>), exposing the whole stack to
+#     clickjacking.
+#   * PUBLIC_ROLE_LIKE = "Gamma" copies the full Gamma permission set onto the
+#     anonymous Public role, letting every unauthenticated visitor read
+#     datasets/charts and issue chart-data queries.
+# Because this file is a copy-paste template for embedding, these are gated
+# behind an explicit opt-in so they never take effect implicitly. Enable them
+# only in a local, non-networked development environment, and prefer granting
+# the guest role the minimum perms the embedded flow needs over widening Public.
+if _env_true("SUPERSET_FEATURE_EMBEDDED_SUPERSET") and _env_true(
+    "SUPERSET_LIGHT_INSECURE_EMBEDDED"
+):
+    TALISMAN_ENABLED = False
+    PUBLIC_ROLE_LIKE = "Gamma"
