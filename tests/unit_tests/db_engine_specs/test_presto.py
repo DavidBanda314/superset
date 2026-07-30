@@ -410,3 +410,41 @@ def test_extract_errors_maps_401_to_access_denied() -> None:
     result = PrestoEngineSpec.extract_errors(Exception(msg))
     assert len(result) == 1
     assert result[0].error_type == SupersetErrorType.CONNECTION_ACCESS_DENIED_ERROR
+
+
+def test_partition_query_escapes_identifiers_and_values() -> None:
+    """
+    Test that ``_partition_query`` quotes identifiers and escapes filter values
+    so that they cannot break out of the generated SQL.
+    """
+    from superset.db_engine_specs.presto import PrestoEngineSpec
+
+    database = mock.MagicMock()
+    database.get_extra.return_value = {}
+
+    sql = PrestoEngineSpec._partition_query(
+        table=Table("my_table", "my_schema"),
+        indexes=[],
+        database=database,
+        limit=1,
+        order_by=[("ds", True)],
+        filters={"ds": "a' OR 1=1 --"},
+    )
+    assert 'SELECT * FROM "my_schema"."my_table$partitions"' in sql
+    assert """WHERE "ds" = 'a'' OR 1=1 --'""" in sql
+    assert 'ORDER BY "ds" DESC' in sql
+
+    sql = PrestoEngineSpec._partition_query(
+        table=Table('evil"tbl', 'evil"schema'),
+        indexes=[],
+        database=database,
+    )
+    assert 'SELECT * FROM "evil""schema"."evil""tbl$partitions"' in sql
+
+    database.get_extra.return_value = {"version": "0.198"}
+    sql = PrestoEngineSpec._partition_query(
+        table=Table("my_table", "my_schema"),
+        indexes=[],
+        database=database,
+    )
+    assert 'SHOW PARTITIONS FROM "my_schema"."my_table"' in sql
