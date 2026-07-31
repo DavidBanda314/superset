@@ -18,6 +18,18 @@
 
 set -eo pipefail
 
+# Fail fast rather than falling back to a well-known password: docker/.env
+# ships the credentials empty and they must be supplied via docker/.env-local
+# or the environment.
+for required_var in DATABASE_PASSWORD EXAMPLES_PASSWORD; do
+    if [ -z "${!required_var}" ]; then
+        echo "ERROR: ${required_var} is not set." >&2
+        echo "Generate credentials with 'scripts/generate-docker-secrets.sh' (or 'make up')," >&2
+        echo "or set them yourself in docker/.env-local, e.g. openssl rand -base64 24" >&2
+        exit 1
+    fi
+done
+
 # Make python interactive
 if [ "$DEV_MODE" == "true" ]; then
     if [ "$(whoami)" = "root" ] && command -v uv > /dev/null 2>&1; then
@@ -38,7 +50,7 @@ PORT=${PORT:-8088}
 if [ "$CYPRESS_CONFIG" == "true" ]; then
     export SUPERSET_TESTENV=true
     export POSTGRES_DB=superset_cypress
-    export SUPERSET__SQLALCHEMY_DATABASE_URI=postgresql+psycopg2://superset:superset@db:5432/superset_cypress
+    export SUPERSET__SQLALCHEMY_DATABASE_URI="postgresql+psycopg2://${DATABASE_USER}:${DATABASE_PASSWORD}@${DATABASE_HOST}:${DATABASE_PORT}/superset_cypress"
     PORT=8081
 fi
 # Skip postgres requirements installation for workers to avoid conflicts

@@ -24,6 +24,9 @@ if ! docker info > /dev/null 2>&1; then
     sleep 5
 fi
 
+# Make sure the credentials docker/.env ships empty exist in docker/.env-local
+./scripts/generate-docker-secrets.sh
+
 # Clean up any existing containers
 echo "🧹 Cleaning up existing containers..."
 docker-compose -f docker-compose-light.yml --profile mcp down
