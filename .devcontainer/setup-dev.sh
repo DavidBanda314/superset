@@ -13,13 +13,15 @@ sudo apt-get install -y \
     tmux \
     gh
 
-# Install uv for fast Python package management
-echo "📦 Installing uv..."
-curl -LsSf https://astral.sh/uv/install.sh | sh
+# Install uv for fast Python package management from PyPI at a pinned version,
+# rather than piping a remote installer script into a shell
+UV_VERSION="0.11.32"
+echo "📦 Installing uv ${UV_VERSION}..."
+python3 -m pip install --user "uv==${UV_VERSION}"
 
-# Add cargo/bin to PATH for uv
-echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> ~/.bashrc
-echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> ~/.zshrc
+# Add the user bin directory to PATH for uv
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
 
 # Install Claude Code CLI via npm
 echo "🤖 Installing Claude Code..."
