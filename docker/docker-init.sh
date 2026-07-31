@@ -35,13 +35,26 @@ Init Step ${1}/${STEP_CNT} [${2}] -- ${3}
 ######################################################################
 EOF
 }
-ADMIN_PASSWORD="${ADMIN_PASSWORD:-admin}"
 # If Cypress run – overwrite the password for admin and export env variables
 if [ "$CYPRESS_CONFIG" == "true" ]; then
     ADMIN_PASSWORD="general"
     export SUPERSET_TESTENV=true
     export POSTGRES_DB=superset_cypress
     export SUPERSET__SQLALCHEMY_DATABASE_URI=postgresql+psycopg2://superset:superset@db:5432/superset_cypress
+elif [ -z "$ADMIN_PASSWORD" ]; then
+    # No well-known default: generate a random password and show it once so the
+    # operator can log in, while still encouraging an explicit ADMIN_PASSWORD.
+    ADMIN_PASSWORD="$(python -c 'import secrets; print(secrets.token_urlsafe(24))')"
+    cat <<EOF
+######################################################################
+ADMIN_PASSWORD was not set; a random admin password was generated:
+
+    $ADMIN_PASSWORD
+
+Store it now -- it is not persisted anywhere else. Set ADMIN_PASSWORD
+explicitly to choose your own password.
+######################################################################
+EOF
 fi
 # Initialize the database
 echo_step "1" "Starting" "Applying DB migrations"
@@ -49,14 +62,15 @@ superset db upgrade
 echo_step "1" "Complete" "Applying DB migrations"
 
 # Create an admin user
-echo_step "2" "Starting" "Setting up admin user ( admin / $ADMIN_PASSWORD )"
+echo_step "2" "Starting" "Setting up admin user ( admin )"
 if [ "$CYPRESS_CONFIG" == "true" ]; then
     superset load_test_users
 else
-    superset fab create-admin \
+    # Password is piped in via stdin (twice, for the confirmation prompt) so it
+    # is never exposed in the process list or in the container logs.
+    printf '%s\n%s\n' "$ADMIN_PASSWORD" "$ADMIN_PASSWORD" | superset fab create-admin \
         --username admin \
         --email admin@superset.com \
-        --password "$ADMIN_PASSWORD" \
         --firstname Superset \
         --lastname Admin
 fi
