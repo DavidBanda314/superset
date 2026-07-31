@@ -39,6 +39,9 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
+# Make sure the credentials docker/.env ships empty exist in docker/.env-local
+"$SCRIPT_DIR/generate-docker-secrets.sh"
+
 # Generate project name from directory name (sanitized for Docker)
 DIR_NAME=$(basename "$REPO_ROOT")
 PROJECT_NAME=$(echo "$DIR_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/--*/-/g' | sed 's/^-//' | sed 's/-$//')

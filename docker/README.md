@@ -38,6 +38,18 @@ intended for use with local development.
 
 To override environment variables locally, create a `./docker/.env-local` file (git-ignored). This file will be loaded after `.env` and can override any settings.
 
+#### Database Credentials
+
+`./docker/.env` ships `DATABASE_PASSWORD`, `POSTGRES_PASSWORD` and `EXAMPLES_PASSWORD` empty on purpose so that no stack is ever provisioned with a publicly known password; the containers refuse to start until they are set.
+
+Running `make up` (or `./scripts/docker-compose-up.sh`) calls [`./scripts/generate-docker-secrets.sh`](../scripts/generate-docker-secrets.sh), which writes generated values to `./docker/.env-local` if they aren't set yet. Run that script directly when invoking `docker compose` yourself, or set the values manually:
+
+```bash
+echo "DATABASE_PASSWORD=$(openssl rand -base64 24)" >> docker/.env-local
+```
+
+`DATABASE_PASSWORD` and `POSTGRES_PASSWORD` must match, since Postgres is provisioned with the latter and Superset connects with the former. Credentials are baked into the `db_home` volume on first start, so change them with a fresh volume (`make nuke`).
+
 #### Python Configuration
 
 In order to override configuration settings locally, simply make a copy of [`./docker/pythonpath_dev/superset_config_local.example`](./pythonpath_dev/superset_config_local.example)

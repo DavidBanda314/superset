@@ -190,6 +190,12 @@ used by `docker compose`, and that `docker/.env-local` can be used to override t
 Also note that `docker/.env-local` is referenced in our `.gitignore`,
 preventing developers from risking committing potentially sensitive configuration to the repository.
 
+The metadata database credentials (`DATABASE_PASSWORD`, `POSTGRES_PASSWORD` and `EXAMPLES_PASSWORD`)
+are shipped empty in `docker/.env` and the stack will not start until they are provided. Generate
+them with `./scripts/generate-docker-secrets.sh` (also run automatically by `make up`), or set them
+yourself in `docker/.env-local` using something like `openssl rand -base64 24`. `DATABASE_PASSWORD`
+and `POSTGRES_PASSWORD` must be set to the same value.
+
 One important variable is `SUPERSET_LOAD_EXAMPLES` which determines whether the `superset_init`
 container will populate example data and visualizations into the metadata database. These examples
 are helpful for learning and testing out Superset but unnecessary for experienced users and
