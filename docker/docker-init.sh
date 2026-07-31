@@ -42,12 +42,19 @@ if [ "$CYPRESS_CONFIG" == "true" ]; then
     export POSTGRES_DB=superset_cypress
     export SUPERSET__SQLALCHEMY_DATABASE_URI=postgresql+psycopg2://superset:superset@db:5432/superset_cypress
 elif [ -z "$ADMIN_PASSWORD" ]; then
-    cat >&2 <<EOF
-ERROR: ADMIN_PASSWORD is not set.
-Set it to a strong, non-default value before starting the stack, e.g.:
-    export ADMIN_PASSWORD="\$(openssl rand -base64 24)"
+    # No well-known default: generate a random password and show it once so the
+    # operator can log in, while still encouraging an explicit ADMIN_PASSWORD.
+    ADMIN_PASSWORD="$(python -c 'import secrets; print(secrets.token_urlsafe(24))')"
+    cat <<EOF
+######################################################################
+ADMIN_PASSWORD was not set; a random admin password was generated:
+
+    $ADMIN_PASSWORD
+
+Store it now -- it is not persisted anywhere else. Set ADMIN_PASSWORD
+explicitly to choose your own password.
+######################################################################
 EOF
-    exit 1
 fi
 # Initialize the database
 echo_step "1" "Starting" "Applying DB migrations"
