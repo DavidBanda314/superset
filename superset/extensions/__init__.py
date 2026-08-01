@@ -22,6 +22,7 @@ from typing import Any, Callable, Optional
 import celery
 from flask import Flask
 from flask_appbuilder import AppBuilder
+from greenlet import getcurrent as _current_greenlet
 
 # Temporary fix for missing flask_appbuilder.utils.legacy module
 try:
@@ -154,7 +155,11 @@ async_query_manager: AsyncQueryManager = LocalProxy(
 cache_manager = CacheManager()
 celery_app = celery.Celery()
 csrf = CSRFProtect()
-db = get_sqla_class()()
+# Scope the ORM session per greenlet/thread rather than per Flask application
+# context, which is what flask-sqlalchemy 3 does by default. Superset enters
+# nested application contexts (CLI commands, Celery tasks, tests) that expect to
+# keep sharing a single session.
+db = get_sqla_class()(session_options={"scopefunc": _current_greenlet})
 _event_logger: dict[str, Any] = {}
 encrypted_field_factory = EncryptedFieldFactory()
 event_logger = LocalProxy(lambda: _event_logger.get("event_logger"))
