@@ -733,6 +733,8 @@ supersetWebsockets:
     pullPolicy: IfNotPresent
   # -- The config.json to pass to the server, see https://github.com/apache/superset/tree/master/superset-websocket
   # Note that the configuration can also read from environment variables (which will have priority), see https://github.com/apache/superset/blob/master/superset-websocket/src/config.ts for a list of supported variables
+  # `jwtSecret` has no default and must be set to a strong, unique value matching
+  # `GLOBAL_ASYNC_QUERIES_JWT_SECRET` in the Superset config; rendering fails otherwise
   # @default -- see `values.yaml`
   config:
     {
@@ -750,7 +752,7 @@ supersetWebsockets:
           "ssl": false,
         },
       "redisStreamPrefix": "async-events-",
-      "jwtSecret": "CHANGE-ME",
+      "jwtSecret": "",
       "jwtCookieName": "async-token",
     }
   service:

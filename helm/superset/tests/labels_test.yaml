@@ -429,6 +429,7 @@ tests:
     template: secret-ws.yaml
     set:
       supersetWebsockets.enabled: true
+      supersetWebsockets.config.jwtSecret: "test-secret-for-unit-test"
     asserts:
       - isNotNull:
           path: metadata.labels["app.kubernetes.io/name"]
@@ -495,6 +496,7 @@ tests:
     template: pdb-ws.yaml
     set:
       supersetWebsockets.enabled: true
+      supersetWebsockets.config.jwtSecret: "test-secret-for-unit-test"
       supersetWebsockets.podDisruptionBudget.enabled: true
       supersetWebsockets.podDisruptionBudget.maxUnavailable: null
     asserts:
