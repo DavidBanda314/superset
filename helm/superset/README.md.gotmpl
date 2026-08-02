@@ -45,6 +45,15 @@ It should be a long random bytes or str.
 
 On helm this can be set on `extraSecretEnv.SUPERSET_SECRET_KEY` or `configOverrides.secrets`
 
+## Async queries (WebSocket)
+
+When `supersetWebsockets.enabled=true`, you must supply your own
+`supersetWebsockets.config.jwtSecret`. The chart ships no default: it is the HS256 key used to
+sign and verify the `async-token` cookie, so a shared or publicly known value lets anyone forge a
+token for an arbitrary channel and read other users' async query results. Rendering fails when the
+value is empty (or left as `CHANGE-ME`). It must match `GLOBAL_ASYNC_QUERIES_JWT_SECRET` in the
+Superset config.
+
 ## Upgrade Notes
 
 ### Kubernetes recommended labels (breaking)
