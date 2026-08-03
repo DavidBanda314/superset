@@ -157,9 +157,16 @@ services:
       - /home/superset-websocket/node_modules
       - /home/superset-websocket/dist
 
-      # Mount config file. Create your own docker/superset-websocket/config.json
-      # for custom settings, then point to it here. Do not use this example in production.
-      - ./docker/superset-websocket/config.example.json:/home/superset-websocket/config.json:ro
+      # For custom settings, create your own docker/superset-websocket/config.json
+      # (git-ignored) and mount it here. The committed config.example.json is
+      # documentation only and must not be used as the live config: its jwtSecret
+      # is public in the repo, so mounting it would let anyone forge async-query
+      # auth tokens. The server reads its secret from the JWT_SECRET env var below.
+    env_file:
+      - path: docker/.env # default
+        required: true
+      - path: docker/.env-local # optional override
+        required: false
     environment:
       - PORT=8080
       - REDIS_HOST=redis
