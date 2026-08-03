@@ -102,10 +102,12 @@ if (startServer && opts.jwtSecret.length < 32) {
 }
 
 if (startServer && opts.jwtSecret.startsWith('CHANGE-ME')) {
-  logger.warn(
-    'It appears your secret in your config.json is insecure. ' +
-      'DO NOT USE IN PRODUCTION',
+  logger.error(
+    'Refusing to start: the JWT secret is set to the shipped example value. ' +
+      'Provide a unique, secret jwtSecret (e.g. via the JWT_SECRET environment ' +
+      'variable) before starting the server.',
   );
+  process.exit(1);
 }
 
 export const buildRedisOpts = (baseConfig: RedisConfig) => {
