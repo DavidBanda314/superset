@@ -105,7 +105,10 @@ jobs:
         if: steps.auth.outputs.authorized == 'true'
         run: |
           echo "::notice::Maintainer $GITHUB_ACTOR triggered deploy for PR ${PULL_REQUEST_NUMBER}"
-          pip install --upgrade superset-showtime
+          # Pin to a reviewed release so a compromised/hijacked upstream publish cannot run
+          # arbitrary code with the AWS/DockerHub/GITHUB_TOKEN secrets held by this job.
+          # Bump this pin deliberately after reviewing the release.
+          pip install "superset-showtime==0.7.1"
           showtime version
 
         env:
