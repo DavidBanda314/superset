@@ -29,13 +29,13 @@ maintainers:
   - name: craig-rueda
     email: craig@craigrueda.com
     url: https://github.com/craig-rueda
-version: 0.19.0 # See [README](https://github.com/apache/superset/blob/master/helm/superset/README.md#versioning) for version details.
+version: 0.20.0 # See [README](https://github.com/apache/superset/blob/master/helm/superset/README.md#versioning) for version details.
 dependencies:
   - name: postgresql
     version: 16.7.27
     repository: oci://registry-1.docker.io/bitnamicharts
     condition: postgresql.enabled
   - name: redis
-    version: 17.9.4
+    version: 22.0.7
     repository: oci://registry-1.docker.io/bitnamicharts
     condition: redis.enabled
