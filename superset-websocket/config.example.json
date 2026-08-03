@@ -19,5 +19,5 @@
   "jwtAlgorithms": ["HS256"],
   "jwtSecret": "CHANGE-ME",
   "jwtCookieName": "async-token",
-  "allowedOrigins": []
+  "allowedOrigins": ["http://localhost:8088"]
 }

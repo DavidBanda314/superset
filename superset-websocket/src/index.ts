@@ -509,23 +509,26 @@ export const httpRequest = (
  * Validates the `Origin` header of a WebSocket upgrade request against the
  * configured `allowedOrigins` list, mitigating Cross-Site WebSocket Hijacking.
  *
- * When `allowedOrigins` is empty the check is skipped (preserving existing
- * behavior); a single `'*'` entry explicitly allows any origin. Otherwise the
- * request's `Origin` must exactly match one of the configured origins.
+ * A single `'*'` entry explicitly allows any origin. When no allowlist is
+ * configured the check fails closed for browser-issued requests: any request
+ * carrying an `Origin` header is rejected, while requests without one
+ * (non-browser clients, which are not subject to CSWSH) are accepted.
  */
 export const isOriginAllowed = (request: http.IncomingMessage): boolean => {
   const { allowedOrigins } = opts;
 
-  if (!allowedOrigins || allowedOrigins.length === 0) {
-    return true;
-  }
-  if (allowedOrigins.includes('*')) {
+  if (allowedOrigins?.includes('*')) {
     return true;
   }
 
   // `origin` is typed as `string | string[] | undefined`; only a single,
   // unambiguous string header is acceptable for an exact-match comparison.
   const origin = request.headers.origin;
+
+  if (!allowedOrigins || allowedOrigins.length === 0) {
+    return origin === undefined;
+  }
+
   if (typeof origin !== 'string') {
     return false;
   }
