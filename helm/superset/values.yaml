@@ -1014,7 +1014,7 @@ redis:
   image:
     registry: docker.io
     repository: bitnamilegacy/redis
-    tag: 7.0.10-debian-11-r4
+    tag: 8.2.1-debian-12-r0
 
 nodeSelector: {}
 
