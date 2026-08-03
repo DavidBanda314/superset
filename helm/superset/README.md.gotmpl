@@ -47,6 +47,21 @@ On helm this can be set on `extraSecretEnv.SUPERSET_SECRET_KEY` or `configOverri
 
 ## Upgrade Notes
 
+### Non-root by default (behaviour-changing)
+
+The chart now defaults to running all workloads as the non-root `superset` user (`runAsUser: 1000`) and applies hardened security contexts out of the box: pods set `runAsNonRoot: true` / `fsGroup: 1000` and containers set `allowPrivilegeEscalation: false` with `capabilities.drop: ["ALL"]`. This makes the chart compatible with the `restricted` Pod Security Standard by default.
+
+If your `bootstrapScript` needs root (e.g. to install OS packages at startup), opt back in by overriding the relevant values:
+
+```yaml
+runAsUser: 0
+supersetNode:
+  podSecurityContext:
+    runAsNonRoot: false
+```
+
+For production it is recommended to bake such customizations into your own image instead of running as root.
+
 ### Kubernetes recommended labels (breaking)
 
 This chart labels and selects workloads using the [Kubernetes recommended labels](https://kubernetes.io/docs/concepts/overview/working-with-objects/common-labels/) (`app.kubernetes.io/*`) instead of the legacy `app`/`release` labels. A Deployment's `spec.selector.matchLabels` is immutable, so `helm upgrade` against a release created before this change fails with a `field is immutable` error.
