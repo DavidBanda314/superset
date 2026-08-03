@@ -82,10 +82,14 @@ from:
 ```
 
 The `Origin` header of each upgrade request must exactly match one of the
-configured values. When `allowedOrigins` is empty (the default) the check is
-skipped and any origin is accepted; a single `"*"` entry explicitly allows any
-origin. Setting this is recommended for production deployments, especially when
-the JWT cookie uses `SameSite=None`.
+configured values. When `allowedOrigins` is empty (the default) the check fails
+closed: any upgrade request carrying an `Origin` header (i.e. every
+browser-issued request) is rejected, while requests without one (non-browser
+clients) are accepted. A single `"*"` entry explicitly opts out of origin
+validation and allows any origin.
+
+Configuring this is therefore required for browser clients, including the
+Superset frontend.
 
 ## Superset Configuration
 

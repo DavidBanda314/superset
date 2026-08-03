@@ -864,6 +864,20 @@ describe('server', () => {
         return request;
       };
 
+      test('rejects upgrade with an origin when no allowlist is set', () => {
+        server.opts.allowedOrigins = [];
+        const validToken = jwt.sign({ channel: channelId }, config.jwtSecret);
+        const request = getRequestWithOrigin(
+          validToken,
+          'https://evil.example',
+        );
+
+        server.httpUpgrade(request, socket, Buffer.alloc(5));
+
+        expect(socketDestroySpy).toHaveBeenCalled();
+        expect(wssUpgradeSpy).not.toHaveBeenCalled();
+      });
+
       test('rejects upgrade from a disallowed origin', () => {
         server.opts.allowedOrigins = ['https://superset.example.com'];
         const validToken = jwt.sign({ channel: channelId }, config.jwtSecret);
@@ -916,10 +930,10 @@ describe('server', () => {
       server.opts.allowedOrigins = [];
     });
 
-    test('allows any origin when allowlist is empty', () => {
+    test('rejects browser requests when allowlist is empty', () => {
       server.opts.allowedOrigins = [];
       expect(server.isOriginAllowed(makeRequest('https://anything'))).toBe(
-        true,
+        false,
       );
       expect(server.isOriginAllowed(makeRequest())).toBe(true);
     });
