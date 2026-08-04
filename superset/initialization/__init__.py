@@ -748,6 +748,23 @@ class SupersetAppInitializer:  # pylint: disable=too-many-public-methods
         )
         sys.exit(1)
 
+    def check_session_cookie_secure(self) -> None:
+        """Warn when the session cookie is transmitted over plaintext HTTP."""
+        if self.config.get("SESSION_COOKIE_SECURE"):
+            return
+        if self.superset_app.debug or self.superset_app.config["TESTING"] or is_test():
+            return
+        if os.environ.get("SUPERSET_ENV") == "development":
+            return
+        self._log_config_warning(
+            "SESSION_COOKIE_SECURE is disabled outside of development. The "
+            "session cookie will be transmitted over plaintext HTTP, allowing "
+            "session hijacking on untrusted networks (CWE-614 / CWE-319).\n"
+            "Serve Superset over HTTPS and leave SESSION_COOKIE_SECURE enabled, "
+            "or explicitly set SESSION_COOKIE_SECURE=False only for local "
+            "development."
+        )
+
     def configure_session(self) -> None:
         if self.config["SESSION_SERVER_SIDE"]:
             Session(self.superset_app)
@@ -862,6 +879,7 @@ class SupersetAppInitializer:  # pylint: disable=too-many-public-methods
         """
         self.pre_init()
         self.check_secret_key()
+        self.check_session_cookie_secure()
         self.configure_session()
         # Configuration of logging must be done first to apply the formatter properly
         self.configure_logging()
