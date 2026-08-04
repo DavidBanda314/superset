@@ -2469,9 +2469,13 @@ TALISMAN_CONFIG = {
         "script-src": ["'self'", "'strict-dynamic'"],
     },
     "content_security_policy_nonce_in": ["script-src"],
-    "force_https": True,
-    "session_cookie_secure": True,
-    "strict_transport_security": True,
+    # Secure transport (force_https / session_cookie_secure / HSTS) is left to
+    # the operator because Superset is frequently served over plain HTTP behind
+    # a TLS-terminating proxy; enabling it here would break those deployments.
+    # See SESSION_COOKIE_SECURE below and the startup warning that nudges
+    # operators to enable secure transport in production.
+    "force_https": False,
+    "session_cookie_secure": False,
 }
 # React requires `eval` to work correctly in dev mode
 TALISMAN_DEV_CONFIG = {
@@ -2528,11 +2532,13 @@ TALISMAN_DEV_CONFIG = {
 # for details
 #
 SESSION_COOKIE_HTTPONLY = True  # Prevent cookie from being read by frontend JS?
-# Secure by default: only transmit the session cookie over TLS. Operators
-# serving Superset over plain HTTP (e.g. local development) can opt out with
-# the SESSION_COOKIE_SECURE environment variable.
+# Only transmit the session cookie over TLS. This defaults to False so Superset
+# works out of the box over plain HTTP (local development, deployments behind a
+# TLS-terminating proxy), but operators serving Superset over HTTPS should set
+# SESSION_COOKIE_SECURE=True. A startup warning is emitted when this is left
+# disabled outside of development (see SupersetAppInitializer).
 SESSION_COOKIE_SECURE = utils.cast_to_boolean(
-    os.environ.get("SESSION_COOKIE_SECURE", True)
+    os.environ.get("SESSION_COOKIE_SECURE", False)
 )
 SESSION_COOKIE_SAMESITE: Literal["None", "Lax", "Strict"] | None = "Lax"
 # Whether to use server side sessions from flask-session or Flask secure cookies
