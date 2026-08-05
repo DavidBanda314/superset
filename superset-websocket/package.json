@@ -50,6 +50,7 @@
     "npm": "^11.13.0"
   },
   "overrides": {
-    "@babel/core": "^7.29.6"
+    "@babel/core": "^7.29.6",
+    "postcss": "^8.5.23"
   }
 }
