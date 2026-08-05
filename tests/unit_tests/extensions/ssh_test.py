@@ -86,6 +86,25 @@ def _ssh_tunnel(server_host_key: str | None) -> Mock:
     return tunnel
 
 
+def test_ssh_manager_defaults_to_strict_host_key_checking() -> None:
+    """Fail closed when SSH_TUNNEL_STRICT_HOST_KEY_CHECKING is not configured."""
+    app = Mock()
+    app.config = {
+        "SSH_TUNNEL_LOCAL_BIND_ADDRESS": "127.0.0.1",
+        "SSH_TUNNEL_TIMEOUT_SEC": 123.0,
+        "SSH_TUNNEL_PACKET_TIMEOUT_SEC": 321.0,
+        "SSH_TUNNEL_MANAGER_CLASS": "superset.extensions.ssh.SSHManager",
+    }
+    assert SSHManager(app).strict_host_key_checking is True
+
+
+def test_config_default_strict_host_key_checking_fails_closed() -> None:
+    """The shipped config default must verify host keys (fail closed)."""
+    from superset import config
+
+    assert config.SSH_TUNNEL_STRICT_HOST_KEY_CHECKING is True
+
+
 def test_ssh_tunnel_timeout_setting() -> None:
     app = Mock()
     app.config = {
