@@ -110,7 +110,7 @@ class SSHManager:
         super().__init__()
         self.local_bind_address = app.config["SSH_TUNNEL_LOCAL_BIND_ADDRESS"]
         self.strict_host_key_checking = app.config.get(
-            "SSH_TUNNEL_STRICT_HOST_KEY_CHECKING", False
+            "SSH_TUNNEL_STRICT_HOST_KEY_CHECKING", True
         )
         sshtunnel.TUNNEL_TIMEOUT = app.config["SSH_TUNNEL_TIMEOUT_SEC"]
         sshtunnel.SSH_TIMEOUT = app.config["SSH_TUNNEL_PACKET_TIMEOUT_SEC"]
