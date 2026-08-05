@@ -59,5 +59,8 @@
     "url": "https://github.com/apache/superset/issues"
   },
   "license": "Apache-2.0",
-  "author": "Superset"
+  "author": "Superset",
+  "overrides": {
+    "postcss": "^8.5.23"
+  }
 }
