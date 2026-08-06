@@ -125,6 +125,10 @@ def process_html_links(html_content: str) -> str:
 # encoded TAB only disappears after the browser parses the URL.
 _URL_STRIPPED_CONTROL_CHARS = re.compile(r"[\t\n\r]|%09|%0[ADad]")
 
+# Backslashes, literal and percent-encoded, are equivalent to forward slashes
+# for browsers parsing special-scheme URLs.
+_URL_BACKSLASH = re.compile(r"\\|%5[Cc]")
+
 
 def is_safe_redirect_url(url: str) -> bool:
     """
@@ -140,11 +144,16 @@ def is_safe_redirect_url(url: str) -> bool:
     # following a Location header).
     stripped = _URL_STRIPPED_CONTROL_CHARS.sub("", url.strip())
 
+    # Browsers normalize backslashes to forward slashes in the authority
+    # position, so ``/\host`` navigates to ``http://host``. Normalize before
+    # the structural check so mixed slash forms cannot pose as relative paths.
+    normalized = _URL_BACKSLASH.sub("/", stripped)
+
     # Block protocol-relative URLs
-    if stripped.startswith("//") or stripped.startswith("\\\\"):
+    if normalized.startswith("//"):
         return False
 
-    parsed = urlparse(stripped)
+    parsed = urlparse(normalized)
 
     # Relative paths are safe
     if not parsed.scheme and not parsed.netloc:
