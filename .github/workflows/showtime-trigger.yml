@@ -162,9 +162,22 @@ jobs:
           # checkout is an explicit, authorized opt-in rather than an automatic one.
           allow-unsafe-pr-checkout: true
 
+      # Load workflow logic (composite actions) from a TRUSTED ref, not the fork PR tree.
+      # This checkout runs after the untrusted PR checkout and targets a distinct path;
+      # actions/checkout cleans its destination, so a malicious PR cannot shadow these
+      # files. Only ./base-repo/.github/actions/* is referenced below, never ./.github/*.
+      - name: Checkout trusted base .github (only if build needed)
+        if: steps.auth.outputs.authorized == 'true' && steps.check.outputs.build_needed == 'true'
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: base-repo
+          sparse-checkout: .github
+          persist-credentials: false
+
       - name: Setup Docker Environment (only if build needed)
         if: steps.auth.outputs.authorized == 'true' && steps.check.outputs.build_needed == 'true'
-        uses: ./.github/actions/setup-docker
+        uses: ./base-repo/.github/actions/setup-docker
         with:
           dockerhub-user: ${{ secrets.DOCKERHUB_USER }}
           dockerhub-token: ${{ secrets.DOCKERHUB_TOKEN }}
