@@ -727,9 +727,12 @@ supersetWebsockets:
     path: /ws
     pathType: Prefix
   image:
-    # -- There is no official image (yet), this one is community-supported
-    repository: oneacrefund/superset-websocket
-    tag: latest
+    # -- The official websocket image, built from `superset-websocket/` and published as
+    # the `-websocket` flavor of the `apache/superset` releases
+    repository: apache/superset
+    # -- Pin to an immutable release tag (never `latest`) so deployments are reproducible
+    # and scannable. Can also be set to `<version>-websocket@sha256:<digest>` to pin by digest.
+    tag: 6.1.0-websocket
     pullPolicy: IfNotPresent
   # -- The config.json to pass to the server, see https://github.com/apache/superset/tree/master/superset-websocket
   # Note that the configuration can also read from environment variables (which will have priority), see https://github.com/apache/superset/blob/master/superset-websocket/src/config.ts for a list of supported variables
