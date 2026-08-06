@@ -23,14 +23,12 @@
                 {
                     "name": "SUPERSET_PORT",
                     "value": "8080"
-                },
+                }
+            ],
+            "secrets": [
                 {
                     "name": "SUPERSET_SECRET_KEY",
-                    "value": "super-secret-for-ephemerals"
-                },
-                {
-                    "name": "TALISMAN_ENABLED",
-                    "value": "False"
+                    "valueFrom": "/superset-ci/SUPERSET_SECRET_KEY"
                 }
             ],
             "mountPoints": [],
