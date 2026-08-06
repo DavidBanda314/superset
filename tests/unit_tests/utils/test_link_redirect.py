@@ -170,3 +170,22 @@ def test_safe_path_with_tab_in_internal_segment(app: Flask) -> None:
     """A tab inside a regular path segment is still a relative URL after
     stripping; it must not flip the result to safe-then-unsafe."""
     assert is_safe_redirect_url("/dashboard/1?from=tab%09inside")
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "//evil.com",
+        "/\\evil.com",
+        "\\/evil.com",
+        "\\\\evil.com",
+        "/%5Cevil.com",
+        "/%5cevil.com",
+        "%5C/evil.com",
+        "/\t/\\evil.com",
+    ],
+)
+def test_unsafe_url_with_backslash_authority(app: Flask, url: str) -> None:
+    """Browsers normalize backslashes to forward slashes in the authority
+    position, so ``/\\host`` navigates off-origin to ``http://host``."""
+    assert not is_safe_redirect_url(url)
