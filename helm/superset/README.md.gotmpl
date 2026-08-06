@@ -60,6 +60,26 @@ helm upgrade <release-name> superset/superset
 
 Alternatively, perform a fresh install. This is a one-time migration; subsequent upgrades are unaffected.
 
+### Bundled PostgreSQL bumped to 17.6 (breaking for existing bundled databases)
+
+The bundled `postgresql` subchart image now pins PostgreSQL `17.6.0`, replacing `14.17.0`, which is affected by
+CVE-2025-8713, CVE-2025-8714 and CVE-2025-8715 (fixed upstream in 14.19/17.6). No patched 14.x image is published in the
+`bitnamilegacy` archive, so the fix requires the major bump.
+
+PostgreSQL cannot read a data directory written by an older major version. A release created with the previous default
+keeps a 14.x `PGDATA` on its PVC and the pod will crash-loop after upgrading. Either dump and restore the metadata
+database into a fresh volume, or keep the old image explicitly:
+
+```yaml
+postgresql:
+  image:
+    tag: "14.17.0-debian-12-r3"
+```
+
+The bundled database is meant for evaluation. Production deployments should set `postgresql.enabled: false` and point
+`database` at a managed, patched PostgreSQL instance. The `docker.io/bitnamilegacy/*` registry is a frozen archive that
+receives no further updates, so the bundled image will not get future patches.
+
 {{ template "chart.requirementsSection" . }}
 
 {{ template "chart.valuesSection" . }}
