@@ -934,10 +934,15 @@ postgresql:
     ## PostgreSQL name for a custom database to create
     database: superset
 
+  ## The bundled database is intended for evaluation only. Production deployments
+  ## should disable it and point `database` / `supersetNode.connections` at a
+  ## managed, patched PostgreSQL instance.
+  ## `bitnamilegacy` is a frozen archive that receives no further updates, so this
+  ## pin is the last published tag; override `image` to use a maintained registry.
   image:
     registry: docker.io
     repository: bitnamilegacy/postgresql
-    tag: "14.17.0-debian-12-r3"
+    tag: "17.6.0-debian-12-r4"
 
   ## PostgreSQL Primary parameters
   primary:
