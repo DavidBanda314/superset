@@ -52,7 +52,7 @@ services:
         required: true
       - path: docker/.env-local # optional override
         required: false
-    image: nginx:latest
+    image: nginx:1.29-alpine@sha256:5616878291a2eed594aee8db4dade5878cf7edcb475e59193904b198d9b830de
     restart: unless-stopped
     ports:
       - "${NGINX_PORT:-80}:80"
