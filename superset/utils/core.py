@@ -557,39 +557,143 @@ def markdown(raw: str, markup_wrap: bool | None = False) -> str:
     return safe
 
 
-def sanitize_svg_content(svg_content: str) -> str:
-    """Basic SVG protection - remove obvious XSS vectors, trust admin input otherwise.
+# Allowlist of SVG elements that cannot execute script or reference external
+# resources. Notably absent: script, style, foreignObject, use, set, animate*,
+# image, filter primitives and anything that can point at a URL.
+SAFE_SVG_TAGS = {
+    "svg",
+    "g",
+    "defs",
+    "symbol",
+    "title",
+    "desc",
+    "path",
+    "rect",
+    "circle",
+    "ellipse",
+    "line",
+    "polyline",
+    "polygon",
+    "text",
+    "tspan",
+    "linearGradient",
+    "radialGradient",
+    "stop",
+    "clipPath",
+    "mask",
+    "pattern",
+}
 
-    Minimal protection approach that removes scripts and javascript: URLs while
-    preserving all legitimate SVG features. Assumes admin-provided content.
+# Elements whose content is dropped along with the element itself
+UNSAFE_SVG_CONTENT_TAGS = {
+    "script",
+    "style",
+    "foreignObject",
+    "iframe",
+    "object",
+    "embed",
+    "use",
+    "set",
+    "animate",
+    "animateTransform",
+    "animateMotion",
+    "handler",
+    "noscript",
+}
+
+# Presentational attributes only: no href/xlink:href, no on* handlers, no style
+SAFE_SVG_ATTRS = {
+    "class",
+    "id",
+    "xmlns",
+    "version",
+    "viewBox",
+    "preserveAspectRatio",
+    "width",
+    "height",
+    "x",
+    "y",
+    "dx",
+    "dy",
+    "x1",
+    "y1",
+    "x2",
+    "y2",
+    "cx",
+    "cy",
+    "r",
+    "rx",
+    "ry",
+    "d",
+    "points",
+    "transform",
+    "fill",
+    "fill-opacity",
+    "fill-rule",
+    "stroke",
+    "stroke-width",
+    "stroke-opacity",
+    "stroke-linecap",
+    "stroke-linejoin",
+    "stroke-dasharray",
+    "stroke-dashoffset",
+    "stroke-miterlimit",
+    "opacity",
+    "offset",
+    "stop-color",
+    "stop-opacity",
+    "gradientUnits",
+    "gradientTransform",
+    "spreadMethod",
+    "patternUnits",
+    "clipPathUnits",
+    "maskUnits",
+    "maskContentUnits",
+    "clip-rule",
+    "clip-path",
+    "mask",
+    "font-family",
+    "font-size",
+    "font-weight",
+    "font-style",
+    "text-anchor",
+    "dominant-baseline",
+    "letter-spacing",
+    "overflow",
+    "shape-rendering",
+    "vector-effect",
+}
+
+
+def sanitize_svg_content(svg_content: str) -> str:
+    """Sanitize SVG markup with an allowlist of shape/gradient elements.
+
+    Uses ``nh3`` (the sanitizer already used for markdown) so that the result is
+    safe even when inlined into a document: scripting elements, script-capable
+    elements (``foreignObject``, ``use``, ``set``, ``animate``) and every
+    attribute outside the presentational allowlist are dropped, together with
+    the content of scripting elements.
 
     Args:
         svg_content: Raw SVG content string
 
     Returns:
-        str: SVG content with obvious XSS vectors removed
+        str: Sanitized SVG content, or an empty string when nothing survives
     """
     if not svg_content or not svg_content.strip():
         return ""
 
-    # Minimal protection: remove obvious malicious content, preserve all SVG features
-    content = re.sub(
-        r"<script[^>]*>.*?</script>", "", svg_content, flags=re.IGNORECASE | re.DOTALL
-    )
-    content = re.sub(r"javascript:", "", content, flags=re.IGNORECASE)
-    content = re.sub(r"data:[^;]*;[^,]*,.*javascript", "", content, flags=re.IGNORECASE)
+    # pylint: disable=no-member
+    content = nh3.clean(
+        svg_content,
+        tags=SAFE_SVG_TAGS,
+        clean_content_tags=UNSAFE_SVG_CONTENT_TAGS,
+        attributes={"*": SAFE_SVG_ATTRS},
+    ).strip()
 
-    # Remove event handlers (simple catch-all approach)
-    content = re.sub(r"\bon\w+\s*=", "", content, flags=re.IGNORECASE)
-
-    # Remove other suspicious patterns
-    content = re.sub(
-        r"<iframe[^>]*>.*?</iframe>", "", content, flags=re.IGNORECASE | re.DOTALL
-    )
-    content = re.sub(
-        r"<object[^>]*>.*?</object>", "", content, flags=re.IGNORECASE | re.DOTALL
-    )
-    content = re.sub(r"<embed[^>]*>", "", content, flags=re.IGNORECASE)
+    # Anything that no longer contains an SVG root is not usable as an SVG
+    if "<svg" not in content.lower():
+        return ""
 
     return content
 
