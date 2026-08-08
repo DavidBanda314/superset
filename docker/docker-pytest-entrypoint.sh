@@ -18,13 +18,36 @@
 
 set -e
 
+: "${DATABASE_USER:?DATABASE_USER must be set (see docker/.env)}"
+: "${DATABASE_PASSWORD:?DATABASE_PASSWORD must be set (see docker/.env)}"
+
+# Shared Python prelude: connection settings come from the environment so that no
+# credential is embedded in this script.
+read -r -d '' DB_HELPER <<'PYTHON_HELPER' || true
+import os
+
+import psycopg2
+
+MAINTENANCE_DB = os.environ.get("PYTEST_MAINTENANCE_DB", "superset_light")
+TEST_DB = os.environ.get("PYTEST_TEST_DB", "test")
+
+
+def connect(database):
+    return psycopg2.connect(
+        host=os.environ.get("DATABASE_HOST", "db-light"),
+        port=os.environ.get("DATABASE_PORT", "5432"),
+        user=os.environ["DATABASE_USER"],
+        password=os.environ["DATABASE_PASSWORD"],
+        database=database,
+    )
+PYTHON_HELPER
+
 # Wait for PostgreSQL to be ready
 echo "Waiting for database to be ready..."
 for i in {1..30}; do
-  if python3 -c "
-import psycopg2
+  if python3 -c "$DB_HELPER
 try:
-    conn = psycopg2.connect(host='db-light', user='superset', password='superset', database='superset_light')
+    conn = connect(MAINTENANCE_DB)
     conn.close()
     print('Database is ready!')
 except:
@@ -45,26 +68,26 @@ done
 if [ "${FORCE_RELOAD}" = "true" ]; then
   echo "Force reload requested - resetting test database"
   # Drop and recreate the test database using Python
-  python3 -c "
-import psycopg2
+  python3 -c "$DB_HELPER
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
+from psycopg2.sql import Identifier, SQL
 
 # Connect to default database
-conn = psycopg2.connect(host='db-light', user='superset', password='superset', database='superset_light')
+conn = connect(MAINTENANCE_DB)
 conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
 cur = conn.cursor()
 
 # Drop and recreate test database
 try:
-    cur.execute('DROP DATABASE IF EXISTS test')
+    cur.execute(SQL('DROP DATABASE IF EXISTS {}').format(Identifier(TEST_DB)))
 except:
     pass
 
-cur.execute('CREATE DATABASE test')
+cur.execute(SQL('CREATE DATABASE {}').format(Identifier(TEST_DB)))
 conn.close()
 
 # Connect to test database to create schemas
-conn = psycopg2.connect(host='db-light', user='superset', password='superset', database='test')
+conn = connect(TEST_DB)
 conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
 cur = conn.cursor()
 
@@ -82,28 +105,28 @@ else
   FLAGS="--no-reset-db"
 
   # Ensure test database exists using Python
-  python3 -c "
-import psycopg2
+  python3 -c "$DB_HELPER
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
+from psycopg2.sql import Identifier, SQL
 
 # Check if test database exists
 try:
-    conn = psycopg2.connect(host='db-light', user='superset', password='superset', database='test')
+    conn = connect(TEST_DB)
     conn.close()
     print('Test database already exists')
 except:
     print('Creating test database...')
     # Connect to default database to create test database
-    conn = psycopg2.connect(host='db-light', user='superset', password='superset', database='superset_light')
+    conn = connect(MAINTENANCE_DB)
     conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
     cur = conn.cursor()
 
     # Create test database
-    cur.execute('CREATE DATABASE test')
+    cur.execute(SQL('CREATE DATABASE {}').format(Identifier(TEST_DB)))
     conn.close()
 
     # Connect to test database to create schemas
-    conn = psycopg2.connect(host='db-light', user='superset', password='superset', database='test')
+    conn = connect(TEST_DB)
     conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
     cur = conn.cursor()
 
