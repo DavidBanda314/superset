@@ -1701,10 +1701,26 @@ def test_get_stacktrace():
 
 def test_sanitize_svg_content_safe():
     """Test that safe SVG content is preserved."""
-    safe_svg = '<svg><rect width="10" height="10"/></svg>'
+    safe_svg = (
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">'
+        '<defs><linearGradient id="g"><stop offset="0" stop-color="#fff"/>'
+        "</linearGradient></defs>"
+        '<g transform="rotate(45)"><path d="M0 0L10 10" fill="url(#g)"/></g>'
+        '<rect width="10" height="10"/>'
+        '<text font-size="12" text-anchor="middle">hi</text>'
+        "</svg>"
+    )
     result = sanitize_svg_content(safe_svg)
-    assert "svg" in result
-    assert "rect" in result
+    for expected in (
+        'viewBox="0 0 24 24"',
+        "linearGradient",
+        'stop-color="#fff"',
+        'transform="rotate(45)"',
+        'd="M0 0L10 10"',
+        'width="10"',
+        'font-size="12"',
+    ):
+        assert expected in result
 
 
 def test_sanitize_svg_content_removes_scripts():
@@ -1713,6 +1729,48 @@ def test_sanitize_svg_content_removes_scripts():
     result = sanitize_svg_content(malicious_svg)
     assert "script" not in result.lower()
     assert "alert" not in result
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        # Unclosed script tag: not matched by a `<script>.*?</script>` regex
+        "<svg><script>alert(1)",
+        # Entity-encoded javascript: URL, decoded by the browser after sanitizing
+        '<svg><a href="java&#115;cript:alert(1)">x</a></svg>',
+        '<svg><a href="javascript&#58;alert(1)">x</a></svg>',
+        # Animation elements able to set a scriptable attribute
+        '<svg><set attributeName="href" to="javascript&#0058;alert(1)"/></svg>',
+        '<svg><animate attributeName="href" values="javascript:alert(1)"/></svg>',
+        # HTML smuggled through foreignObject
+        "<svg><foreignObject><img src=x onerror=alert(1)></foreignObject></svg>",
+        # External/internal reference elements
+        '<svg><use href="#x"/></svg>',
+        '<svg><image href="javascript:alert(1)"/></svg>',
+        # Event handlers, including whitespace/newline variants
+        '<svg><circle onclick="alert(1)"/></svg>',
+        '<svg><circle onload\n=\n"alert(1)"/></svg>',
+        # Style-based vectors
+        "<svg><style>*{background:url(javascript:alert(1))}</style></svg>",
+    ],
+)
+def test_sanitize_svg_content_blocks_bypasses(payload: str) -> None:
+    """Test that known regex-sanitizer bypasses do not survive sanitization."""
+    result = sanitize_svg_content(payload).lower()
+    assert "script" not in result
+    assert "alert" not in result
+    assert "href" not in result
+    assert "onclick" not in result
+    assert "onload" not in result
+    assert "onerror" not in result
+    assert "foreignobject" not in result
+
+
+def test_sanitize_svg_content_rejects_non_svg():
+    """Test that content without an SVG root is rejected."""
+    assert sanitize_svg_content("<div>hello</div>") == ""
+    assert sanitize_svg_content("plain text") == ""
+    assert sanitize_svg_content("   ") == ""
 
 
 def test_sanitize_url_relative():
