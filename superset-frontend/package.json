@@ -430,7 +430,8 @@
     },
     "lerna": {
       "js-yaml": "^4.3.0"
-    }
+    },
+    "nanoid@^3.0.0": "3.3.17"
   },
   "readme": "ERROR: No README data found!",
   "scarfSettings": {
