@@ -16,6 +16,7 @@
 import csv as lib_csv
 import os
 import re
+import subprocess
 import sys
 from collections.abc import Iterator
 from dataclasses import dataclass
@@ -270,15 +271,24 @@ class GitLogs:
         return f"{self._git_ref}, Log count:{len(self._logs)}"
 
     @staticmethod
+    def _git(*args: str) -> str:
+        return subprocess.run(  # noqa: S603
+            ["git", *args],  # noqa: S607
+            check=False,
+            capture_output=True,
+            text=True,
+        ).stdout
+
+    @staticmethod
     def _git_get_current_head() -> str:
-        output = os.popen("git status | head -1").read()  # noqa: S605, S607
+        output = GitLogs._git("status").partition("\n")[0]
         match = re.match("(?:HEAD detached at|On branch) (.*)", output)
         if not match:
             return ""
         return match.group(1)
 
     def _git_checkout(self, git_ref: str) -> None:
-        os.popen(f"git checkout {git_ref}").read()  # noqa: S605
+        self._git("checkout", git_ref)
         current_head = self._git_get_current_head()
         if current_head != git_ref:
             print(f"Could not checkout {git_ref}")
@@ -288,11 +298,9 @@ class GitLogs:
         # let's get current git ref so we can revert it back
         current_git_ref = self._git_get_current_head()
         self._git_checkout(self._git_ref)
-        output = (
-            os.popen('git --no-pager log --pretty=format:"%h|%an|%ae|%ad|%s|"')  # noqa: S605, S607
-            .read()
-            .split("\n")
-        )
+        output = self._git(
+            "--no-pager", "log", "--pretty=format:%h|%an|%ae|%ad|%s|"
+        ).split("\n")
         # revert to git ref, let's be nice
         self._git_checkout(current_git_ref)
         return output
