@@ -61,9 +61,20 @@ function test_init() {
 #
 # Init global vars
 #
-DB_NAME="test"
-DB_USER="superset"
-DB_PASSWORD="superset"
+DB_NAME="${DB_NAME:-test}"
+
+# Credentials are read from the environment. When unset, they fall back to the
+# values configured for the local `docker compose` stack in `docker/.env`, so
+# there is a single place to change them.
+DOCKER_ENV_FILE="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/docker/.env"
+read_docker_env() {
+  [[ -f "${DOCKER_ENV_FILE}" ]] || return 0
+  grep -E "^$1=" "${DOCKER_ENV_FILE}" | tail -1 | cut -d= -f2-
+}
+DB_USER="${DB_USER:-$(read_docker_env DATABASE_USER)}"
+DB_PASSWORD="${DB_PASSWORD:-$(read_docker_env DATABASE_PASSWORD)}"
+: "${DB_USER:?set DB_USER (or DATABASE_USER in docker/.env)}"
+: "${DB_PASSWORD:?set DB_PASSWORD (or DATABASE_PASSWORD in docker/.env)}"
 
 # Pointing to use the test database in local `docker compose` setup
 export SUPERSET__SQLALCHEMY_DATABASE_URI=${SUPERSET__SQLALCHEMY_DATABASE_URI:-postgresql+psycopg2://"${DB_USER}":"${DB_PASSWORD}"@localhost/"${DB_NAME}"}
