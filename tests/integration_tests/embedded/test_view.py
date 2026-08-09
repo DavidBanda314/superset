@@ -97,6 +97,22 @@ def test_get_embedded_dashboard_referrer_not_allowed(client: FlaskClient[Any]): 
     assert response.status_code == 403
 
 
+@pytest.mark.usefixtures("load_birth_names_dashboard_with_slices")
+@mock.patch.dict(
+    "superset.extensions.feature_flag_manager._feature_flags",
+    EMBEDDED_SUPERSET=True,
+)
+def test_get_embedded_dashboard_no_allowed_domains_rejects_foreign_referrer(
+    client: FlaskClient[Any],  # noqa: F811
+):
+    dash = db.session.query(Dashboard).filter_by(slug="births").first()
+    embedded = EmbeddedDashboardDAO.upsert(dash, [])
+    db.session.flush()
+    uri = f"embedded/{embedded.uuid}"
+    response = client.get(uri, headers={"Referer": "https://evil.example.com"})
+    assert response.status_code == 403
+
+
 @mock.patch.dict(
     "superset.extensions.feature_flag_manager._feature_flags",
     EMBEDDED_SUPERSET=True,

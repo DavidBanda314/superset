@@ -56,12 +56,20 @@ class EmbeddedView(BaseSupersetView):
 
         assert embedded is not None
 
-        # validate request referrer in allowed domains
-        is_referrer_allowed = not embedded.allowed_domains
-        for domain in embedded.allowed_domains:
-            if same_origin(request.referrer, domain):
-                is_referrer_allowed = True
-                break
+        # Validate the request referrer against the allowed domains. When no
+        # domains are configured the check fails closed: only a same-origin
+        # referrer (or a request without one, e.g. a direct navigation or a
+        # stripped referrer) is accepted, so an unconfigured embed cannot be
+        # framed and driven by an arbitrary third-party site.
+        if embedded.allowed_domains:
+            is_referrer_allowed = any(
+                same_origin(request.referrer, domain)
+                for domain in embedded.allowed_domains
+            )
+        else:
+            is_referrer_allowed = not request.referrer or same_origin(
+                request.referrer, request.host_url
+            )
 
         if not is_referrer_allowed:
             abort(403)
@@ -98,7 +106,7 @@ class EmbeddedView(BaseSupersetView):
             "embedded": {
                 "dashboard_id": embedded.dashboard_id,
                 # The list of domains allowed to embed this dashboard. An empty
-                # list means any domain is allowed (no restriction). The frontend
+                # list means no cross-origin embedder is allowed. The frontend
                 # uses this to validate the origin of incoming postMessage events.
                 "allowed_domains": embedded.allowed_domains,
             },

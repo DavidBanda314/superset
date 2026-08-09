@@ -204,7 +204,7 @@ export const DashboardEmbedControls = ({ dashboardId, onHide }: Props) => {
               <InfoTooltip
                 placement="top"
                 tooltip={t(
-                  'A list of domain names that can embed this dashboard. Leaving this field empty will allow embedding from any domain.',
+                  'A list of domain names that can embed this dashboard. Leaving this field empty will only allow embedding from this Superset instance.',
                 )}
               />
             </span>
