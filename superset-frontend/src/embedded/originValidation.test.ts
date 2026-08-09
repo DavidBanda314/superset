@@ -27,12 +27,22 @@ const makeEvent = (origin: string, data: unknown): MessageEvent =>
 
 const validData = { type: MESSAGE_TYPE, handshake: 'port transfer' };
 
-test('isMessageOriginAllowed allows any origin when the list is undefined', () => {
-  expect(isMessageOriginAllowed('https://anywhere.example.com')).toBe(true);
+test('isMessageOriginAllowed rejects a foreign origin when the list is undefined', () => {
+  const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+  expect(isMessageOriginAllowed('https://anywhere.example.com')).toBe(false);
+  warn.mockRestore();
 });
 
-test('isMessageOriginAllowed allows any origin when the list is empty', () => {
-  expect(isMessageOriginAllowed('https://anywhere.example.com', [])).toBe(true);
+test('isMessageOriginAllowed rejects a foreign origin when the list is empty', () => {
+  const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+  expect(isMessageOriginAllowed('https://anywhere.example.com', [])).toBe(
+    false,
+  );
+  warn.mockRestore();
+});
+
+test('isMessageOriginAllowed allows same-origin messages when the list is empty', () => {
+  expect(isMessageOriginAllowed(window.location.origin, [])).toBe(true);
 });
 
 test('isMessageOriginAllowed allows an origin that is in the list', () => {
@@ -70,10 +80,12 @@ test('isMessageOriginAllowed rejects an origin that is not in the list and warns
   warn.mockRestore();
 });
 
-test('validateMessageEvent accepts a valid embedded message from any origin when unrestricted', () => {
+test('validateMessageEvent rejects a valid embedded message from a foreign origin when no domains are configured', () => {
+  const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
   const event = makeEvent('https://anywhere.example.com', validData);
-  expect(validateMessageEvent(event)).toBe(true);
-  expect(validateMessageEvent(event, [])).toBe(true);
+  expect(validateMessageEvent(event)).toBe(false);
+  expect(validateMessageEvent(event, [])).toBe(false);
+  warn.mockRestore();
 });
 
 test('validateMessageEvent accepts a valid embedded message from a listed origin', () => {
@@ -102,11 +114,11 @@ test('validateMessageEvent rejects a message whose data type does not match', ()
 });
 
 test('validateMessageEvent rejects a message whose data is not an object', () => {
-  const event = makeEvent('https://allowed.example.com', 'not-an-object');
+  const event = makeEvent(window.location.origin, 'not-an-object');
   expect(validateMessageEvent(event)).toBe(false);
 });
 
 test('validateMessageEvent rejects a message whose data is null', () => {
-  const event = makeEvent('https://allowed.example.com', null);
+  const event = makeEvent(window.location.origin, null);
   expect(validateMessageEvent(event)).toBe(false);
 });

@@ -44,19 +44,19 @@ function normalizeToOrigin(domain: string): string {
  * Validates the origin of an incoming postMessage event against the dashboard's
  * configured allowed domains.
  *
- * Enforcement is opt-in by configuration: if the allowed-domains list is empty
- * or undefined, any origin is accepted (no restriction), which preserves the
- * historical behavior for embeds that did not configure domains. When the list
- * is non-empty, only origins present in the list are accepted.
+ * The check fails closed: when the allowed-domains list is empty or undefined,
+ * only same-origin messages are accepted, so an embed without configured
+ * domains cannot be driven by a third-party page. When the list is non-empty,
+ * only origins present in the list are accepted.
  */
 export function isMessageOriginAllowed(
   origin: string,
   allowedDomains?: string[],
 ): boolean {
-  if (!allowedDomains || allowedDomains.length === 0) {
+  if (origin === window.location.origin) {
     return true;
   }
-  if (allowedDomains.some(domain => normalizeToOrigin(domain) === origin)) {
+  if (allowedDomains?.some(domain => normalizeToOrigin(domain) === origin)) {
     return true;
   }
   // eslint-disable-next-line no-console
