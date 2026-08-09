@@ -2611,9 +2611,14 @@ GLOBAL_ASYNC_QUERIES_REDIS_STREAM_LIMIT = 1000
 GLOBAL_ASYNC_QUERIES_REDIS_STREAM_LIMIT_FIREHOSE = 1000000
 GLOBAL_ASYNC_QUERIES_REGISTER_REQUEST_HANDLERS = True
 GLOBAL_ASYNC_QUERIES_JWT_COOKIE_NAME = "async-token"
-GLOBAL_ASYNC_QUERIES_JWT_COOKIE_SECURE = False
+# The async-query JWT cookie carries a token that authorizes reading the user's
+# async query results channel, so it defaults to `Secure` and `SameSite=Lax`.
+# Embedded/cross-origin deployments that need the cookie on cross-site requests
+# must set the samesite value to "None", which browsers only honor together
+# with `Secure` (and therefore HTTPS).
+GLOBAL_ASYNC_QUERIES_JWT_COOKIE_SECURE = True
 GLOBAL_ASYNC_QUERIES_JWT_COOKIE_SAMESITE: None | (Literal["None", "Lax", "Strict"]) = (
-    None
+    "Lax"
 )
 GLOBAL_ASYNC_QUERIES_JWT_COOKIE_DOMAIN = None
 GLOBAL_ASYNC_QUERIES_JWT_SECRET = CHANGE_ME_GLOBAL_ASYNC_QUERIES_JWT_SECRET
