@@ -197,8 +197,10 @@ test.describe('Embedded Dashboard E2E', () => {
       }
       dashboardId = dashboard.id;
 
-      // Enable embedding on the dashboard (empty allowed_domains = allow all)
-      const embedded = await apiEnableEmbedding(setupPage, dashboardId);
+      // Origin checks fail closed, so the test app's origin must be allowed
+      const embedded = await apiEnableEmbedding(setupPage, dashboardId, [
+        appServer.url,
+      ]);
       embedUuid = embedded.uuid;
 
       // Cache the JWT access token so tests don't re-login per guest token.
@@ -320,9 +322,9 @@ test.describe('Embedded Dashboard E2E', () => {
       const response = await embeddedResponsePromise;
       expect(response.status()).toBe(403);
     } finally {
-      // Restore the open embedding config for other tests in this file.
+      // Restore the embedding config for other tests in this file.
       try {
-        await apiEnableEmbedding(setupPage, dashboardId, []);
+        await apiEnableEmbedding(setupPage, dashboardId, [appServer.url]);
       } catch (err) {
         // eslint-disable-next-line no-console
         console.error('[embedded teardown] restore failed:', err);

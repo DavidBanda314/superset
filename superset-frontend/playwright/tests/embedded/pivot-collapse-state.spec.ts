@@ -231,7 +231,10 @@ test.describe('Embedded Pivot Table collapse state (#33406)', () => {
         dashboards: [dashboardId],
       });
 
-      const embedded = await apiEnableEmbedding(setupPage, dashboardId);
+      // Origin checks fail closed, so the test app's origin must be allowed
+      const embedded = await apiEnableEmbedding(setupPage, dashboardId, [
+        appServer.url,
+      ]);
       embedUuid = embedded.uuid;
       accessToken = await getAccessToken(setupPage);
     } finally {

@@ -37,7 +37,8 @@ export interface EmbeddedConfig {
  * Uses PUT (upsert) to preserve UUID across repeated calls.
  * @param page - Playwright page instance (provides authentication context)
  * @param dashboardIdOrSlug - Numeric dashboard id or slug
- * @param allowedDomains - Domains allowed to embed; empty array allows all
+ * @param allowedDomains - Domains allowed to embed; an empty array allows
+ *   same-origin embedding only
  * @returns Embedded config with UUID, allowed_domains, and dashboard_id
  */
 export async function apiEnableEmbedding(
