@@ -28,6 +28,7 @@ from superset.utils.excel import (
     apply_column_types,
     df_to_excel,
     NEUTRAL_TIMESTAMP,
+    quote_formulas,
 )
 
 
@@ -95,8 +96,7 @@ def test_negative_numbers_are_not_escaped() -> None:
     Test that plain negative numbers are exported as-is.
     """
     df = pd.DataFrame({"value": ["-5", "-1.25"]})
-    contents = df_to_excel(df, index=False)
-    assert pd.read_excel(contents)["value"].tolist() == ["-5", "-1.25"]
+    assert quote_formulas(df)["value"].tolist() == ["-5", "-1.25"]
 
 
 def test_headers_are_escaped() -> None:
