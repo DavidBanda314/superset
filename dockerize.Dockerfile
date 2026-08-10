@@ -15,17 +15,24 @@
 # limitations under the License.
 #
 
-FROM alpine:latest
+FROM alpine:3.22@sha256:14358309a308569c32bdc37e2e0e9694be33a9d99e68afb0f5ff33cc1f695dce
 
 ARG DOCKERIZE_VERSION=v0.7.0
+ARG DOCKERIZE_SHA256_AMD64=bb9b55630aa63da22bafb2132f06fe00f298ef16272a99134e69495c37b33ce9
+ARG DOCKERIZE_SHA256_ARM64=c73c547159bcc12467f5163f86f49d493237cf007f8b7507783f51f35ed9bea1
 
-RUN apk update --no-cache \
-    && apk add --no-cache wget openssl \
-    && case "$(apk --print-arch)" in \
-        x86_64) ARCH=amd64 ;; \
-        aarch64) ARCH=arm64 ;; \
-       esac \
-    && wget -O - https://github.com/jwilder/dockerize/releases/download/$DOCKERIZE_VERSION/dockerize-linux-${ARCH}-${DOCKERIZE_VERSION}.tar.gz | tar xzf - -C /usr/local/bin \
-    && apk del wget
+RUN set -eux; \
+    apk update --no-cache; \
+    apk add --no-cache wget openssl; \
+    case "$(apk --print-arch)" in \
+        x86_64) ARCH=amd64; EXPECTED_SHA="${DOCKERIZE_SHA256_AMD64}" ;; \
+        aarch64) ARCH=arm64; EXPECTED_SHA="${DOCKERIZE_SHA256_ARM64}" ;; \
+        *) echo "unsupported architecture: $(apk --print-arch)" >&2; exit 1 ;; \
+    esac; \
+    wget -O /tmp/dockerize.tar.gz "https://github.com/jwilder/dockerize/releases/download/${DOCKERIZE_VERSION}/dockerize-linux-${ARCH}-${DOCKERIZE_VERSION}.tar.gz"; \
+    echo "${EXPECTED_SHA}  /tmp/dockerize.tar.gz" | sha256sum -c -; \
+    tar -xzf /tmp/dockerize.tar.gz --no-same-owner -C /usr/local/bin dockerize; \
+    rm /tmp/dockerize.tar.gz; \
+    apk del wget
 
 USER 10001
