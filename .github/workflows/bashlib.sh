@@ -82,7 +82,11 @@ setup-postgres() {
   say "::group::Install dependency for unit tests"
   sudo apt-get update && sudo apt-get install --yes libecpg-dev
   say "::group::Initialize database"
-  psql "postgresql://superset:superset@127.0.0.1:15432/superset" <<-EOF
+  # The DSN is defined once per job via SUPERSET__SQLALCHEMY_DATABASE_URI; psql
+  # doesn't understand the SQLAlchemy driver suffix, so strip it.
+  : "${SUPERSET__SQLALCHEMY_DATABASE_URI:?SUPERSET__SQLALCHEMY_DATABASE_URI must be set}"
+  local dsn="${SUPERSET__SQLALCHEMY_DATABASE_URI//[[:space:]]/}"
+  psql "${dsn/postgresql+psycopg2:/postgresql:}" <<-EOF
     DROP SCHEMA IF EXISTS sqllab_test_db CASCADE;
     DROP SCHEMA IF EXISTS admin_database CASCADE;
     CREATE SCHEMA sqllab_test_db;
