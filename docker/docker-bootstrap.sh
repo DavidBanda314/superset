@@ -38,7 +38,9 @@ PORT=${PORT:-8088}
 if [ "$CYPRESS_CONFIG" == "true" ]; then
     export SUPERSET_TESTENV=true
     export POSTGRES_DB=superset_cypress
-    export SUPERSET__SQLALCHEMY_DATABASE_URI=postgresql+psycopg2://superset:superset@db:5432/superset_cypress
+    : "${DATABASE_USER:?DATABASE_USER must be set}"
+    : "${DATABASE_PASSWORD:?DATABASE_PASSWORD must be set}"
+    export SUPERSET__SQLALCHEMY_DATABASE_URI="postgresql+psycopg2://${DATABASE_USER}:${DATABASE_PASSWORD}@${DATABASE_HOST:-db}:${DATABASE_PORT:-5432}/superset_cypress"
     PORT=8081
 fi
 # Skip postgres requirements installation for workers to avoid conflicts
