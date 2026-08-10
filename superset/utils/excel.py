@@ -21,6 +21,7 @@ from typing import Any
 import pandas as pd
 
 from superset.utils.core import GenericDataType
+from superset.utils.csv import escape_value
 
 # Fixed, neutral timestamp applied to workbook document properties so that
 # exported files do not carry an environment-specific generation time.
@@ -42,20 +43,19 @@ NEUTRAL_DOCUMENT_PROPERTIES: dict[str, Any] = {
 }
 
 
+def _escape_if_string(value: Any) -> Any:
+    return escape_value(value) if isinstance(value, str) else value
+
+
 def quote_formulas(df: pd.DataFrame) -> pd.DataFrame:
     """
     Make sure to quote any formulas for security reasons.
-    """
-    formula_prefixes = {"=", "+", "-", "@"}
 
+    Uses the same escaping rules as the CSV exporter so that both export
+    formats offer identical protection against formula injection.
+    """
     for col in df.select_dtypes(include="object").columns:
-        df[col] = df[col].apply(
-            lambda x: (
-                f"'{x}"
-                if isinstance(x, str) and len(x) and x[0] in formula_prefixes
-                else x
-            )
-        )
+        df[col] = df[col].apply(_escape_if_string)
 
     return df
 
@@ -66,8 +66,16 @@ def df_to_excel(df: pd.DataFrame, **kwargs: Any) -> Any:
     # make sure formulas are quoted, to prevent malicious injections
     df = quote_formulas(df)
 
+    # headers are user controlled as well, so they need escaping too
+    df = df.rename(columns=_escape_if_string)
+
     # pylint: disable=abstract-class-instantiated
-    with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+    with pd.ExcelWriter(
+        output,
+        engine="xlsxwriter",
+        # never let the engine promote a written string to a live formula
+        engine_kwargs={"options": {"strings_to_formulas": False}},
+    ) as writer:
         df.to_excel(writer, **kwargs)
 
         # Reset workbook document properties so the exported file does not

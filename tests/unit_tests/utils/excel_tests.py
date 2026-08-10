@@ -23,6 +23,7 @@ from openpyxl import load_workbook
 from pandas.api.types import is_numeric_dtype
 
 from superset.utils.core import GenericDataType
+from superset.utils.csv import escape_value
 from superset.utils.excel import (
     apply_column_types,
     df_to_excel,
@@ -50,6 +51,63 @@ def test_quote_formulas() -> None:
         "'=SUM(A1:A2)",
         "normal",
         "'@SUM(A1:A2)",
+    ]
+
+
+def test_quote_formulas_parity_with_csv() -> None:
+    """
+    Test that the Excel exporter escapes the same payloads as the CSV one.
+    """
+    payloads = [
+        "\t=cmd|' /C calc'!A0",
+        " =1+1",
+        '""=1+1',
+        "|calc",
+        "%foo",
+        "=SUM(A1:A2)",
+        "@SUM(A1:A2)",
+        "-1+1",
+        "normal",
+        "-5",
+    ]
+    df = pd.DataFrame({"value": payloads})
+    contents = df_to_excel(df.copy(), index=False)
+
+    assert pd.read_excel(contents)["value"].tolist() == [
+        escape_value(payload) for payload in payloads
+    ]
+
+
+def test_carriage_return_prefix_is_escaped() -> None:
+    """
+    Test that a leading carriage return does not smuggle a formula through.
+
+    The xlsx format stores the carriage return as the ``_x000D_`` escape, so only
+    the quoting of the round-tripped value is compared.
+    """
+    df = pd.DataFrame({"value": ["\r=1+1"]})
+    contents = df_to_excel(df, index=False)
+    assert pd.read_excel(contents)["value"][0].startswith("'")
+
+
+def test_negative_numbers_are_not_escaped() -> None:
+    """
+    Test that plain negative numbers are exported as-is.
+    """
+    df = pd.DataFrame({"value": ["-5", "-1.25"]})
+    contents = df_to_excel(df, index=False)
+    assert pd.read_excel(contents)["value"].tolist() == ["-5", "-1.25"]
+
+
+def test_headers_are_escaped() -> None:
+    """
+    Test that malicious column names are escaped, as in the CSV exporter.
+    """
+    df = pd.DataFrame({"=cmd|' /C calc'!A0": ["value"], "safe": ["value"]})
+    contents = df_to_excel(df, index=False)
+    assert pd.read_excel(contents).columns.tolist() == [
+        escape_value("=cmd|' /C calc'!A0"),
+        "safe",
     ]
 
 
