@@ -1479,9 +1479,14 @@ class DashboardRestApi(
     ) -> bool:
         """Whether a permalink's dashboard identifier refers to ``dashboard``.
 
-        Permalinks store either the numeric id or the slug of the dashboard.
+        Permalinks store the dashboard uuid; older entries may hold the
+        numeric id or the slug instead.
         """
-        return permalink_dashboard_id in {str(dashboard.id), dashboard.slug}
+        return permalink_dashboard_id in {
+            str(dashboard.uuid),
+            str(dashboard.id),
+            dashboard.slug,
+        }
 
     @expose("/<pk>/cache_dashboard_screenshot/", methods=("POST",))
     @validate_feature_flags(["THUMBNAILS", "ENABLE_DASHBOARD_SCREENSHOT_ENDPOINTS"])
