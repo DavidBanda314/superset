@@ -31,6 +31,7 @@ import yaml
 from freezegun import freeze_time
 from sqlalchemy import and_
 from superset import db, security_manager  # noqa: F401
+from superset.commands.dashboard.permalink.create import CreateDashboardPermalinkCommand
 from superset.models.dashboard import Dashboard
 from superset.models.core import FavStar, FavStarClassName
 from superset.reports.models import ReportSchedule, ReportScheduleType
@@ -3731,8 +3732,46 @@ class TestDashboardApi(ApiOwnersTestCaseMixin, InsertChartMixin, SupersetTestCas
             .filter(Dashboard.dashboard_title == "dash with tag")
             .first()
         )
-        response = self._cache_screenshot(dashboard.id, {"permalinkKey": "1234"})
+        permalink_key = CreateDashboardPermalinkCommand(
+            dashboard_id=str(dashboard.id), state={}
+        ).run()
+        response = self._cache_screenshot(dashboard.id, {"permalinkKey": permalink_key})
         assert response.status_code == 202
+
+    @with_feature_flags(THUMBNAILS=True, ENABLE_DASHBOARD_SCREENSHOT_ENDPOINTS=True)
+    @pytest.mark.usefixtures("create_dashboard_with_tag")
+    def test_cache_dashboard_screenshot_unknown_permalink_key(self):
+        self.login(ADMIN_USERNAME)
+        dashboard = (
+            db.session.query(Dashboard)
+            .filter(Dashboard.dashboard_title == "dash with tag")
+            .first()
+        )
+        response = self._cache_screenshot(dashboard.id, {"permalinkKey": "1234"})
+        assert response.status_code == 400
+
+    @with_feature_flags(THUMBNAILS=True, ENABLE_DASHBOARD_SCREENSHOT_ENDPOINTS=True)
+    @pytest.mark.usefixtures("create_dashboard_with_tag")
+    def test_cache_dashboard_screenshot_permalink_of_other_dashboard(self):
+        self.login(ADMIN_USERNAME)
+        dashboard_a = (
+            db.session.query(Dashboard)
+            .filter(Dashboard.dashboard_title == "dash with tag")
+            .first()
+        )
+        dashboard_b = self.insert_dashboard(
+            "other dash", "other-dash", [self.get_user(ADMIN_USERNAME).id]
+        )
+        permalink_key = CreateDashboardPermalinkCommand(
+            dashboard_id=str(dashboard_b.id), state={}
+        ).run()
+        response = self._cache_screenshot(
+            dashboard_a.id, {"permalinkKey": permalink_key}
+        )
+        assert response.status_code == 400
+
+        db.session.delete(dashboard_b)
+        db.session.commit()
 
     @with_feature_flags(THUMBNAILS=True, ENABLE_DASHBOARD_SCREENSHOT_ENDPOINTS=True)
     @pytest.mark.usefixtures("create_dashboard_with_tag")

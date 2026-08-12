@@ -73,6 +73,7 @@ from superset.commands.dashboard.export_example import ExportExampleCommand
 from superset.commands.dashboard.fave import AddFavoriteDashboardCommand
 from superset.commands.dashboard.importers.dispatcher import ImportDashboardsCommand
 from superset.commands.dashboard.permalink.create import CreateDashboardPermalinkCommand
+from superset.commands.dashboard.permalink.get import GetDashboardPermalinkCommand
 from superset.commands.dashboard.restore import RestoreDashboardCommand
 from superset.commands.dashboard.unfave import DelFavoriteDashboardCommand
 from superset.commands.dashboard.update import (
@@ -99,6 +100,7 @@ from superset.dashboards.filters import (
     DashboardTitleOrSlugFilter,
     FilterRelatedRoles,
 )
+from superset.dashboards.permalink.exceptions import DashboardPermalinkGetFailedError
 from superset.dashboards.permalink.types import DashboardPermalinkState
 from superset.dashboards.schemas import (
     CacheScreenshotSchema,
@@ -1471,6 +1473,16 @@ class DashboardRestApi(
             response.set_cookie(token, "done", max_age=600)
         return response
 
+    @staticmethod
+    def _permalink_matches_dashboard(
+        permalink_dashboard_id: str, dashboard: Dashboard
+    ) -> bool:
+        """Whether a permalink's dashboard identifier refers to ``dashboard``.
+
+        Permalinks store either the numeric id or the slug of the dashboard.
+        """
+        return permalink_dashboard_id in {str(dashboard.id), dashboard.slug}
+
     @expose("/<pk>/cache_dashboard_screenshot/", methods=("POST",))
     @validate_feature_flags(["THUMBNAILS", "ENABLE_DASHBOARD_SCREENSHOT_ENDPOINTS"])
     @protect()
@@ -1541,13 +1553,27 @@ class DashboardRestApi(
 
         # if the permalink key is provided, dashboard_state will be ignored
         # else, create a permalink key from the dashboard_state
-        permalink_key = (
-            payload.get("permalinkKey", None)
-            or CreateDashboardPermalinkCommand(
+        if permalink_key := payload.get("permalinkKey", None):
+            # a caller-supplied key must point at this dashboard, otherwise the
+            # cached screenshot would be filed under an unrelated resource
+            try:
+                permalink_value = GetDashboardPermalinkCommand(permalink_key).run()
+            except (
+                DashboardAccessDeniedError,
+                DashboardPermalinkGetFailedError,
+            ):
+                permalink_value = None
+            if not permalink_value or not self._permalink_matches_dashboard(
+                permalink_value["dashboardId"], dashboard
+            ):
+                return self.response_400(
+                    message="permalinkKey does not belong to this dashboard"
+                )
+        else:
+            permalink_key = CreateDashboardPermalinkCommand(
                 dashboard_id=str(dashboard.id),
                 state=dashboard_state,
             ).run()
-        )
 
         dashboard_url = get_url_path("Superset.dashboard_permalink", key=permalink_key)
         screenshot_obj = DashboardScreenshot(dashboard_url, dashboard.digest)
