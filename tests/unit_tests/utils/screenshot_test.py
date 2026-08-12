@@ -86,7 +86,26 @@ def test_get_cache_key(app_context, screenshot_obj):
         }
     )
     cache_key = screenshot_obj.get_cache_key()
-    assert cache_key == expected_cache_key
+    assert cache_key == f"-{screenshot_obj.digest}-{expected_cache_key}"
+
+
+def test_cache_key_is_namespaced_per_resource(app_context):
+    """Cache keys are bound to the resource digest they were generated for"""
+    chart_a = ChartScreenshot("http://example.com/a", "digest_a")
+    chart_b = ChartScreenshot("http://example.com/b", "digest_b")
+    dashboard = DashboardScreenshot("http://example.com/d", "digest_a")
+
+    key_a = chart_a.get_cache_key()
+    assert ChartScreenshot.is_cache_key_for_digest(key_a, "digest_a")
+    assert not ChartScreenshot.is_cache_key_for_digest(key_a, "digest_b")
+    assert not ChartScreenshot.is_cache_key_for_digest(key_a, None)
+    assert not ChartScreenshot.is_cache_key_for_digest(
+        chart_b.get_cache_key(), "digest_a"
+    )
+    # a dashboard key is never valid for a chart with the same digest
+    assert not ChartScreenshot.is_cache_key_for_digest(
+        dashboard.get_cache_key(), "digest_a"
+    )
 
 
 def test_get_from_cache_key(mocker: MockerFixture, screenshot_obj):

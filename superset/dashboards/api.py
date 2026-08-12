@@ -1643,6 +1643,10 @@ class DashboardRestApi(
         if not dashboard:
             return self.response_404()
 
+        # the cache key must belong to the dashboard the caller is authorized for
+        if not DashboardScreenshot.is_cache_key_for_digest(digest, dashboard.digest):
+            return self.response_404()
+
         download_format = request.args.get("download_format", "png")
 
         # fetch the dashboard screenshot using the current user and cache if set
