@@ -810,6 +810,10 @@ class ChartRestApi(SoftDeleteApiMixin, BaseSupersetModelRestApi):
         if not chart:
             return self.response_404()
 
+        # the cache key must belong to the chart the caller is authorized for
+        if not ChartScreenshot.is_cache_key_for_digest(digest, chart.digest):
+            return self.response_404()
+
         if cache_payload := ChartScreenshot.get_from_cache_key(digest):
             if cache_payload.status == StatusValues.UPDATED:
                 try:

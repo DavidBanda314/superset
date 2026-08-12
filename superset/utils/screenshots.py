@@ -220,6 +220,23 @@ class BaseScreenshot:
                 driver.destroy()
         return self.screenshot
 
+    @classmethod
+    def get_cache_key_prefix(cls, digest: str | None) -> str:
+        """
+        Namespace cache keys by resource, so that a key handed out for one
+        resource cannot be used to read another resource's screenshot.
+        """
+        return f"{cls.thumbnail_type}-{digest}-"
+
+    @classmethod
+    def is_cache_key_for_digest(cls, cache_key: str, digest: str | None) -> bool:
+        """
+        Check that a cache key was generated for the resource with this digest.
+        """
+        if not digest:
+            return False
+        return cache_key.startswith(cls.get_cache_key_prefix(digest))
+
     def get_cache_key(
         self,
         window_size: bool | WindowSize | None = None,
@@ -234,7 +251,7 @@ class BaseScreenshot:
             "window_size": window_size,
             "thumb_size": thumb_size,
         }
-        return hash_from_dict(args)
+        return f"{self.get_cache_key_prefix(self.digest)}{hash_from_dict(args)}"
 
     def get_from_cache(
         self,
@@ -431,4 +448,4 @@ class DashboardScreenshot(BaseScreenshot):
             "thumb_size": thumb_size,
             "permalink_key": permalink_key,
         }
-        return hash_from_dict(args)
+        return f"{self.get_cache_key_prefix(self.digest)}{hash_from_dict(args)}"

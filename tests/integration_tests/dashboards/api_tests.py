@@ -3852,6 +3852,44 @@ class TestDashboardApi(ApiOwnersTestCaseMixin, InsertChartMixin, SupersetTestCas
         assert response.status_code == 404
 
     @with_feature_flags(THUMBNAILS=True, ENABLE_DASHBOARD_SCREENSHOT_ENDPOINTS=True)
+    @pytest.mark.usefixtures("create_dashboard_with_tag")
+    @patch("superset.dashboards.api.cache_dashboard_screenshot")
+    @patch("superset.dashboards.api.DashboardScreenshot.get_from_cache_key")
+    def test_screenshot_cache_key_from_other_dashboard(
+        self, mock_get_from_cache_key, mock_cache_task
+    ):
+        """
+        A cache key issued for one dashboard must not serve another dashboard
+        """
+        self.login(ADMIN_USERNAME)
+        mock_cache_task.return_value = None
+        mock_get_from_cache_key.return_value = ScreenshotCachePayload(
+            b"fake image data"
+        )
+
+        dashboard = (
+            db.session.query(Dashboard)
+            .filter(Dashboard.dashboard_title == "dash with tag")
+            .first()
+        )
+        other_dashboard = Dashboard(dashboard_title="other dash")
+        db.session.add(other_dashboard)
+        db.session.commit()
+
+        cache_resp = self._cache_screenshot(other_dashboard.id)
+        assert cache_resp.status_code == 200
+        other_cache_key = json.loads(cache_resp.data.decode("utf-8"))["cache_key"]
+
+        for download_format in ("png", "pdf"):
+            response = self._get_screenshot(
+                dashboard.id, other_cache_key, download_format
+            )
+            assert response.status_code == 404
+
+        db.session.delete(other_dashboard)
+        db.session.commit()
+
+    @with_feature_flags(THUMBNAILS=True, ENABLE_DASHBOARD_SCREENSHOT_ENDPOINTS=True)
     def test_screenshot_dashboard_not_found(self):
         self.login(ADMIN_USERNAME)
         non_existent_id = 999
