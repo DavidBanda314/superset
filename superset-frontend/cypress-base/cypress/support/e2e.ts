@@ -83,7 +83,6 @@ before(() => {
     return;
   }
   cy.login();
-  Cypress.Cookies.defaults({ preserve: 'session' });
   cy.loadChartFixtures();
   cy.loadDashboardFixtures();
 });
@@ -280,7 +279,7 @@ Cypress.Commands.add(
     chartSelector: JQuery.Selector;
     querySubstring?: string | RegExp;
   }) => {
-    cy.wait(waitAlias).then(({ response }) => {
+    cy.wait(waitAlias as `@${string}`).then(({ response }) => {
       cy.verifySliceContainer(chartSelector);
       const responseBody = response?.body;
       if (querySubstring) {

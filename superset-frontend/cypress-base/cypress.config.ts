@@ -78,6 +78,9 @@ export default defineConfig({
     },
     baseUrl: 'http://localhost:8088',
     excludeSpecPattern: ['**/_skip.*'],
+    // Specs log in once in a `before` hook and rely on the session cookie
+    // being kept between tests
+    testIsolation: false,
     experimentalRunAllSpecs: true,
     specPattern: ['cypress/e2e/**/*.{js,jsx,ts,tsx}'],
   },
