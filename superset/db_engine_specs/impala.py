@@ -32,7 +32,7 @@ from superset import db
 from superset.constants import QUERY_EARLY_CANCEL_KEY, TimeGrain
 from superset.db_engine_specs.base import BaseEngineSpec, DatabaseCategory
 from superset.models.sql_lab import Query
-from superset.utils.network import is_safe_host
+from superset.utils.network import is_safe_host, safe_requests_session
 
 if TYPE_CHECKING:
     from superset.models.core import Database
@@ -225,9 +225,10 @@ class ImpalaEngineSpec(BaseEngineSpec):
             # via IMPALA_CANCEL_QUERY_ALLOW_INTERNAL_HOSTS.
             if not impala_host:
                 return False
-            if not app.config[
+            allow_internal_hosts = app.config[
                 "IMPALA_CANCEL_QUERY_ALLOW_INTERNAL_HOSTS"
-            ] and not is_safe_host(impala_host):
+            ]
+            if not allow_internal_hosts and not is_safe_host(impala_host):
                 logger.warning(
                     "Impala cancel_query refused: target host is not allowed"
                 )
@@ -235,7 +236,16 @@ class ImpalaEngineSpec(BaseEngineSpec):
             url = f"http://{impala_host}:25000/cancel_query?query_id={cancel_query_id}"
             # Do not follow redirects: a validated host could otherwise 30x the
             # request to an internal target, bypassing the is_safe_host check.
-            response = requests.post(url, timeout=3, allow_redirects=False)
+            #
+            # is_safe_host resolves the name, and requests would resolve it
+            # again when connecting; a host whose records change between the
+            # two answers (DNS rebinding) would defeat the check. The safe
+            # session vets the address of the socket it actually opens.
+            if allow_internal_hosts:
+                response = requests.post(url, timeout=3, allow_redirects=False)
+            else:
+                with safe_requests_session() as session:
+                    response = session.post(url, timeout=3, allow_redirects=False)
         except Exception:  # pylint: disable=broad-except
             return False
 

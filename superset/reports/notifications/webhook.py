@@ -16,6 +16,8 @@
 # under the License.
 
 import logging
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from typing import Any
 from urllib.parse import urlparse
 
@@ -32,7 +34,7 @@ from superset.reports.notifications.exceptions import (
 )
 from superset.utils import json
 from superset.utils.decorators import statsd_gauge
-from superset.utils.network import is_safe_host
+from superset.utils.network import is_safe_host, safe_requests_session
 
 logger = logging.getLogger(__name__)
 
@@ -127,6 +129,23 @@ class WebhookNotification(BaseNotification):
         if not is_safe_host(parsed.hostname):
             raise NotificationParamException("Webhook URL target host is not allowed.")
 
+    @contextmanager
+    def _get_post(self) -> Iterator[Callable[..., requests.Response]]:
+        """
+        Yield the callable used to dispatch the webhook request.
+
+        Unless internal hosts are explicitly allowed, the request goes through a
+        session that vets the address of every socket it opens, so a hostname
+        that resolves to a public address for :meth:`_validate_webhook_url` and
+        to an internal one for the request itself (DNS rebinding) cannot be
+        reached.
+        """
+        if current_app.config["ALERT_REPORTS_WEBHOOK_ALLOW_INTERNAL_HOSTS"]:
+            yield requests.post
+            return
+        with safe_requests_session() as session:
+            yield session.post
+
     @backoff.on_exception(
         backoff.expo,
         NotificationUnprocessableException,
@@ -162,25 +181,26 @@ class WebhookNotification(BaseNotification):
         files = self._get_files()
 
         try:
-            if files:
-                data = {}
-                for key, value in payload.items():
-                    if isinstance(value, (dict, list)):
-                        data[key] = json.dumps(value)
-                    else:
-                        data[key] = value
+            with self._get_post() as post:
+                if files:
+                    data = {}
+                    for key, value in payload.items():
+                        if isinstance(value, (dict, list)):
+                            data[key] = json.dumps(value)
+                        else:
+                            data[key] = value
 
-                response = requests.post(
-                    wh_url,
-                    data=data,
-                    files=files,
-                    timeout=60,
-                    allow_redirects=False,
-                )
-            else:
-                response = requests.post(
-                    wh_url, json=payload, timeout=60, allow_redirects=False
-                )
+                    response = post(
+                        wh_url,
+                        data=data,
+                        files=files,
+                        timeout=60,
+                        allow_redirects=False,
+                    )
+                else:
+                    response = post(
+                        wh_url, json=payload, timeout=60, allow_redirects=False
+                    )
 
             logger.info(
                 "Webhook sent to %s, status code: %s", wh_url, response.status_code

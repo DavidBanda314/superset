@@ -273,6 +273,64 @@ def test_send_treats_redirect_as_failure(monkeypatch, mock_header_data) -> None:
         webhook_notification.send()
 
 
+def test_send_dispatches_through_address_vetting_session(
+    monkeypatch, mock_header_data
+) -> None:
+    """
+    By default the POST goes through a session that vets the address of the
+    socket it opens, so a host that resolves to a public address for the
+    pre-dispatch check and to an internal one for the request (DNS rebinding)
+    cannot be reached.
+    """
+    webhook_notification = _make_webhook(mock_header_data)
+
+    class MockCurrentApp:
+        config = {
+            "ALERT_REPORTS_WEBHOOK_HTTPS_ONLY": True,
+            "ALERT_REPORTS_WEBHOOK_ALLOW_INTERNAL_HOSTS": False,
+        }
+
+    class MockResponse:
+        status_code = 200
+        text = ""
+
+    posted: list[str] = []
+
+    class MockSession:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args) -> None:
+            return None
+
+        def post(self, url, **kwargs) -> MockResponse:
+            posted.append(url)
+            return MockResponse()
+
+    monkeypatch.setattr(
+        "superset.reports.notifications.webhook.current_app", MockCurrentApp
+    )
+    monkeypatch.setattr(
+        "superset.reports.notifications.webhook.feature_flag_manager.is_feature_enabled",
+        lambda flag: True,
+    )
+    monkeypatch.setattr(
+        "superset.reports.notifications.webhook.is_safe_host", lambda host: True
+    )
+    monkeypatch.setattr(
+        "superset.reports.notifications.webhook.safe_requests_session",
+        MockSession,
+    )
+    monkeypatch.setattr(
+        "superset.reports.notifications.webhook.requests.post",
+        lambda *args, **kwargs: pytest.fail("must not bypass the safe session"),
+    )
+
+    webhook_notification.send()
+
+    assert posted == ["https://example.com/webhook"]
+
+
 def _make_webhook(mock_header_data) -> WebhookNotification:
     from superset.reports.models import ReportRecipients, ReportRecipientType
     from superset.reports.notifications.base import NotificationContent

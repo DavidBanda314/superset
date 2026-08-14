@@ -317,7 +317,7 @@ class TestImpalaCancelQueryValidation:
     """Tests for Impala cancel_query input validation"""
 
     @patch("superset.db_engine_specs.impala.is_safe_host", return_value=True)
-    @patch("requests.post")
+    @patch("requests.Session.post")
     def test_cancel_query_valid_id(
         self, requests_mock: Mock, safe_host_mock: Mock
     ) -> None:
