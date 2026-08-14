@@ -14,11 +14,21 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from unittest.mock import patch
+import socket
+from unittest.mock import Mock, patch
 
 import pytest
+from urllib3.exceptions import NewConnectionError
 
-from superset.utils.network import is_safe_host
+from superset.utils.network import (
+    is_safe_host,
+    safe_requests_session,
+    SafeHostHTTPAdapter,
+    SafeHostHTTPConnection,
+    SafeHostHTTPConnectionPool,
+    SafeHostHTTPSConnection,
+    SafeHostHTTPSConnectionPool,
+)
 
 
 @pytest.mark.parametrize(
@@ -66,8 +76,6 @@ def test_is_safe_host_ip_classification(resolved_ip: str, expected: bool) -> Non
 
 def test_is_safe_host_unresolvable_returns_false() -> None:
     """Unresolvable hostnames must return False (fail-closed)."""
-    import socket
-
     with patch(
         "superset.utils.network.socket.getaddrinfo",
         side_effect=socket.gaierror("Name or service not known"),
@@ -131,3 +139,69 @@ def test_is_safe_host_rejects_cgnat_range() -> None:
         return_value=[(None, None, None, None, ("100.100.100.200", 0))],
     ):
         assert is_safe_host("cgnat-host") is False
+
+
+@pytest.mark.parametrize(
+    "connection_cls", [SafeHostHTTPConnection, SafeHostHTTPSConnection]
+)
+def test_safe_connection_refuses_rebound_address(connection_cls: type) -> None:
+    """A host that passes is_safe_host but resolves to an internal address when
+    the socket is opened (DNS rebinding) must not be connected to."""
+    connection = connection_cls("rebinding.example.com", port=80)
+    with (
+        patch(
+            "superset.utils.network.socket.getaddrinfo",
+            return_value=[(None, None, None, None, ("169.254.169.254", 80))],
+        ),
+        patch("superset.utils.network.create_connection") as create_connection_mock,
+        pytest.raises(NewConnectionError),
+    ):
+        connection._new_conn()  # noqa: SLF001
+    create_connection_mock.assert_not_called()
+
+
+def test_safe_connection_connects_to_vetted_address() -> None:
+    """Only the vetted address is connected to, and the hostname is preserved
+    for the Host header and TLS SNI."""
+    connection = SafeHostHTTPConnection("mixed.example.com", port=443)
+    sock = Mock()
+    with (
+        patch(
+            "superset.utils.network.socket.getaddrinfo",
+            return_value=[
+                (None, None, None, None, ("10.0.0.1", 443)),
+                (None, None, None, None, ("8.8.8.8", 443)),
+            ],
+        ),
+        patch(
+            "superset.utils.network.create_connection", return_value=sock
+        ) as create_connection_mock,
+    ):
+        assert connection._new_conn() is sock  # noqa: SLF001
+
+    assert create_connection_mock.call_args.args[0] == ("8.8.8.8", 443)
+    assert connection.host == "mixed.example.com"
+
+
+def test_safe_connection_unresolvable_host_raises() -> None:
+    """An unresolvable host fails closed with a connection error."""
+    connection = SafeHostHTTPConnection("nonexistent.invalid", port=80)
+    with (
+        patch(
+            "superset.utils.network.socket.getaddrinfo",
+            side_effect=socket.gaierror("Name or service not known"),
+        ),
+        pytest.raises(NewConnectionError),
+    ):
+        connection._new_conn()  # noqa: SLF001
+
+
+def test_safe_requests_session_uses_safe_pools() -> None:
+    """The session's adapters build pools that vet the peer address."""
+    with safe_requests_session() as session:
+        for prefix in ("http://", "https://"):
+            adapter = session.get_adapter(prefix + "example.com")
+            assert isinstance(adapter, SafeHostHTTPAdapter)
+            pool_classes = adapter.poolmanager.pool_classes_by_scheme
+            assert pool_classes["http"] is SafeHostHTTPConnectionPool
+            assert pool_classes["https"] is SafeHostHTTPSConnectionPool

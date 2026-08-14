@@ -18,6 +18,13 @@ import ipaddress
 import platform
 import socket
 import subprocess
+from typing import Any
+
+import requests
+from urllib3.connection import HTTPConnection, HTTPSConnection
+from urllib3.connectionpool import HTTPConnectionPool, HTTPSConnectionPool
+from urllib3.exceptions import ConnectTimeoutError, NewConnectionError
+from urllib3.util.connection import create_connection
 
 # Networks that must never be reached via user-supplied hostnames.
 # Includes loopback, RFC-1918 private ranges, link-local (covers cloud
@@ -44,6 +51,21 @@ PORT_TIMEOUT = 5
 PING_TIMEOUT = 5
 
 
+def is_safe_ip(address: str) -> bool:
+    """
+    Return True if ``address`` is a public, globally-routable IP address.
+    """
+    try:
+        ip = ipaddress.ip_address(address)
+    except ValueError:
+        return False
+    # Unwrap IPv4-mapped IPv6 addresses (e.g. ::ffff:127.0.0.1) so they
+    # are checked against the IPv4 unsafe networks rather than bypassing.
+    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped:
+        ip = ip.ipv4_mapped
+    return ip.is_global and not any(ip in net for net in _SSRF_UNSAFE_NETWORKS)
+
+
 def is_safe_host(host: str) -> bool:
     """
     Return True if ``host`` resolves exclusively to public, globally-routable
@@ -52,6 +74,12 @@ def is_safe_host(host: str) -> bool:
     Returns False if any resolved address falls within a private, loopback,
     link-local, or otherwise non-routable range.  An unresolvable host also
     returns False.
+
+    This is a point-in-time check: the name is resolved again when a
+    connection is opened, so a hostname whose records change between the two
+    resolutions (DNS rebinding) can still connect to an unsafe address.  Use
+    :func:`safe_requests_session` for the request itself so that the address
+    the socket actually connects to is the one that gets vetted.
     """
     try:
         results = socket.getaddrinfo(host, None)
@@ -59,18 +87,102 @@ def is_safe_host(host: str) -> bool:
         return False
     if not results:
         return False
-    for _, _, _, _, sockaddr in results:
+    return all(is_safe_ip(str(sockaddr[0])) for _, _, _, _, sockaddr in results)
+
+
+def _resolve_safe_addresses(host: str, port: int | None) -> list[str]:
+    """
+    Resolve ``host`` and return only the addresses that are safe to connect to.
+    """
+    return [
+        str(sockaddr[0])
+        for _, _, _, _, sockaddr in socket.getaddrinfo(host, port)
+        if is_safe_ip(str(sockaddr[0]))
+    ]
+
+
+class SafeHostHTTPConnection(HTTPConnection):
+    """
+    HTTP connection that only opens sockets to globally-routable addresses.
+
+    The address the socket connects to is the address that was vetted, which
+    closes the DNS rebinding window left open by validating a hostname before
+    handing that same hostname to the HTTP client.  ``host`` is left untouched
+    so the ``Host`` header and TLS SNI still carry the hostname.
+    """
+
+    def _new_conn(self) -> socket.socket:
+        extra_kw: dict[str, Any] = {}
+        if self.source_address:
+            extra_kw["source_address"] = self.source_address
+        if self.socket_options:
+            extra_kw["socket_options"] = self.socket_options
+
+        host = self._dns_host.rstrip(".")
         try:
-            ip = ipaddress.ip_address(sockaddr[0])
-        except ValueError:
-            return False
-        # Unwrap IPv4-mapped IPv6 addresses (e.g. ::ffff:127.0.0.1) so they
-        # are checked against the IPv4 unsafe networks rather than bypassing.
-        if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped:
-            ip = ip.ipv4_mapped
-        if not ip.is_global or any(ip in net for net in _SSRF_UNSAFE_NETWORKS):
-            return False
-    return True
+            addresses = _resolve_safe_addresses(host, self.port)
+        except socket.gaierror as ex:
+            raise NewConnectionError(self, f"Failed to resolve {host}: {ex}") from ex
+        if not addresses:
+            raise NewConnectionError(
+                self,
+                f"Refusing to connect to {host}: it does not resolve to a "
+                "public, globally-routable address.",
+            )
+
+        error: OSError | None = None
+        for address in addresses:
+            try:
+                # A literal address is passed on, so no further name
+                # resolution happens here.
+                return create_connection((address, self.port), self.timeout, **extra_kw)
+            except socket.timeout as ex:
+                raise ConnectTimeoutError(
+                    self,
+                    f"Connection to {host} timed out. (connect timeout={self.timeout})",
+                ) from ex
+            except OSError as ex:
+                error = ex
+        raise NewConnectionError(self, f"Failed to establish a new connection: {error}")
+
+
+class SafeHostHTTPSConnection(HTTPSConnection):
+    """HTTPS counterpart of :class:`SafeHostHTTPConnection`."""
+
+    _new_conn = SafeHostHTTPConnection._new_conn  # noqa: SLF001
+
+
+class SafeHostHTTPConnectionPool(HTTPConnectionPool):
+    ConnectionCls = SafeHostHTTPConnection
+
+
+class SafeHostHTTPSConnectionPool(HTTPSConnectionPool):
+    ConnectionCls = SafeHostHTTPSConnection
+
+
+class SafeHostHTTPAdapter(requests.adapters.HTTPAdapter):
+    """
+    ``requests`` adapter that refuses to connect to non-global addresses.
+    """
+
+    def init_poolmanager(self, *args: Any, **kwargs: Any) -> None:
+        super().init_poolmanager(*args, **kwargs)
+        self.poolmanager.pool_classes_by_scheme = {
+            "http": SafeHostHTTPConnectionPool,
+            "https": SafeHostHTTPSConnectionPool,
+        }
+
+
+def safe_requests_session() -> requests.Session:
+    """
+    Build a ``requests`` session whose sockets can only reach public,
+    globally-routable addresses.
+    """
+    session = requests.Session()
+    adapter = SafeHostHTTPAdapter()
+    session.mount("http://", adapter)
+    session.mount("https://", adapter)
+    return session
 
 
 def is_port_open(host: str, port: int) -> bool:
