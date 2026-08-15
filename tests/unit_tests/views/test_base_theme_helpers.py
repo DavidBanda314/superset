@@ -892,6 +892,51 @@ class TestBrandAppNameFallback:
         assert result["default_title"] == "Superset"
 
 
+class TestThemeBackgroundCssSanitization:
+    """Theme backgrounds are interpolated into CSS/JS text and must be colours"""
+
+    @patch("superset.views.base.get_spa_payload")
+    @patch("superset.views.base.app")
+    def test_css_injection_in_colorbgbase_is_dropped(self, mock_app, mock_payload):
+        from superset.views.base import get_spa_template_context
+
+        mock_app.config = {"APP_NAME": "Superset"}
+        payload = "#fff; } html { background: url(//evil) } x {"
+        mock_payload.return_value = {
+            "common": {
+                "theme": {
+                    "default": {"token": {"colorBgBase": payload}},
+                    "dark": {"token": {"colorBgBase": payload}},
+                }
+            }
+        }
+
+        result = get_spa_template_context("app")
+
+        assert result["body_bg"] == "#fff"
+        assert result["dark_theme_bg"] == "#000"
+
+    @patch("superset.views.base.get_spa_payload")
+    @patch("superset.views.base.app")
+    def test_valid_colors_are_preserved(self, mock_app, mock_payload):
+        from superset.views.base import get_spa_template_context
+
+        mock_app.config = {"APP_NAME": "Superset"}
+        mock_payload.return_value = {
+            "common": {
+                "theme": {
+                    "default": {"token": {"colorBgBase": "#f0f0f0"}},
+                    "dark": {"token": {"colorBgBase": "rgb(10, 20, 30)"}},
+                }
+            }
+        }
+
+        result = get_spa_template_context("app")
+
+        assert result["body_bg"] == "#f0f0f0"
+        assert result["dark_theme_bg"] == "rgb(10, 20, 30)"
+
+
 class TestGetDefaultSpinnerSvg:
     """Test get_default_spinner_svg function"""
 

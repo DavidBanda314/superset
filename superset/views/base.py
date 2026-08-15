@@ -64,6 +64,7 @@ from superset.superset_typing import FlaskResponse
 from superset.themes.types import Theme, ThemeMode
 from superset.themes.utils import (
     is_valid_theme,
+    sanitize_css_color,
 )
 from superset.translations.utils import get_language_pack
 from superset.utils import core as utils, json
@@ -682,9 +683,15 @@ def get_spa_template_context(
     # Determine default title using the (potentially updated) brandAppName
     default_title = theme_tokens.get("brandAppName", "Superset")
 
-    # Extract dark theme background for the initial page load CSS.
+    # Extract backgrounds for the initial page load CSS. These are interpolated
+    # into CSS/JS text, so only strict colour values are allowed through.
+    body_bg = sanitize_css_color(theme_tokens.get("colorBgBase"), "#fff")
     dark_theme_tokens = dark_theme.get("token", {}) if dark_theme else {}
-    dark_theme_bg = dark_theme_tokens.get("colorBgBase", "#000") if dark_theme else None
+    dark_theme_bg = (
+        sanitize_css_color(dark_theme_tokens.get("colorBgBase"), "#000")
+        if dark_theme
+        else None
+    )
 
     return {
         "entry": entry,
@@ -692,6 +699,7 @@ def get_spa_template_context(
             payload, default=json.pessimistic_json_iso_dttm_ser
         ),
         "theme_tokens": theme_tokens,
+        "body_bg": body_bg,
         "dark_theme_bg": dark_theme_bg,
         "spinner_svg": spinner_svg,
         "default_title": default_title,
