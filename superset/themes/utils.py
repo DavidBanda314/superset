@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import re
 from typing import Any, Dict
 from urllib.parse import urlparse
 
@@ -92,6 +93,39 @@ def is_valid_theme(theme: Dict[str, Any]) -> bool:
         return True
     except Exception:
         return False
+
+
+#: Colour values that are safe to interpolate into CSS text: hex colours,
+#: functional notations with numeric arguments only, and bare identifiers
+#: (named colours, ``transparent``, ``currentColor``, ...).
+CSS_COLOR_RE = re.compile(
+    r"""^(?:
+        \#[0-9a-fA-F]{3,8}
+        | (?:rgb|rgba|hsl|hsla)\(\s*[0-9a-zA-Z.,%/\s+-]{1,64}\)
+        | [a-zA-Z]{3,32}
+    )$""",
+    re.VERBOSE,
+)
+
+
+def sanitize_css_color(value: Any, default: str) -> str:
+    """Return ``value`` if it is a safe CSS colour, otherwise ``default``.
+
+    Theme tokens are interpolated into CSS text, where HTML escaping is
+    meaningless: characters such as ``;``, ``{`` and ``}`` would let a theme
+    author close the declaration and inject arbitrary CSS rules. Only values
+    matching a strict colour pattern are allowed through.
+
+    Args:
+        value: Candidate colour value from a theme token
+        default: Fallback returned for anything that is not a safe colour
+
+    Returns:
+        str: A CSS colour safe to interpolate into a stylesheet
+    """
+    if isinstance(value, str) and CSS_COLOR_RE.match(value.strip()):
+        return value.strip()
+    return default
 
 
 def sanitize_theme_tokens(theme_config: Dict[str, Any]) -> Dict[str, Any]:

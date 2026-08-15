@@ -25,6 +25,7 @@ from superset.themes.utils import (
     _is_valid_algorithm,
     _is_valid_theme_mode,
     is_valid_theme,
+    sanitize_css_color,
     sanitize_theme_tokens,
     validate_font_urls,
 )
@@ -109,6 +110,34 @@ def test_sanitize_theme_tokens_with_url():
 
     assert result["token"]["brandSpinnerUrl"] == ""  # Blocked
     assert result["token"]["colorPrimary"] == "#ff0000"  # Unchanged
+
+
+@pytest.mark.parametrize(
+    "value, expected",
+    [
+        ("#fff", "#fff"),
+        ("#ff0000", "#ff0000"),
+        ("#ff0000cc", "#ff0000cc"),
+        ("  #123  ", "#123"),
+        ("rgb(1, 2, 3)", "rgb(1, 2, 3)"),
+        ("rgba(1, 2, 3, 0.5)", "rgba(1, 2, 3, 0.5)"),
+        ("hsl(120, 50%, 50%)", "hsl(120, 50%, 50%)"),
+        ("transparent", "transparent"),
+        # Anything that could break out of the CSS declaration is dropped
+        ("#fff; } html { background: url(//evil) } x {", "DEFAULT"),
+        ("red; background-image: url(https://evil.example/x.png)", "DEFAULT"),
+        ("url(https://evil.example/x.png)", "DEFAULT"),
+        ("expression(alert(1))", "DEFAULT"),
+        ("var(--x)", "DEFAULT"),
+        ("#fff</style><script>alert(1)</script>", "DEFAULT"),
+        ("", "DEFAULT"),
+        (None, "DEFAULT"),
+        (123, "DEFAULT"),
+    ],
+)
+def test_sanitize_css_color(value, expected):
+    """Only strict colour values survive; everything else falls back."""
+    assert sanitize_css_color(value, "DEFAULT") == expected
 
 
 def test_sanitize_theme_tokens_no_spinner_tokens():
