@@ -11,8 +11,12 @@ on:
 # base-branch context and can safely be granted write permissions, even for
 # PRs from forks.
 #
-# IMPORTANT: This workflow must NEVER check out code from the PR branch.
-# All data comes from the artifact uploaded by the Translations workflow.
+# IMPORTANT: This workflow must NEVER check out code from the PR branch, and
+# must never trust artifact contents. The artifact is produced by a
+# pull_request-triggered workflow that runs PR-controlled code, so it is
+# attacker-controlled: the target PR number is resolved from the trusted
+# workflow_run event payload, and the report body is sanitized and fenced
+# before being posted.
 
 permissions:
   pull-requests: write
@@ -43,23 +47,78 @@ jobs:
           script: |
             const fs = require('fs');
 
-            const prNumberFile = '/tmp/translation-regression/pr-number.txt';
             const reportFile = '/tmp/translation-regression/regression-report.md';
 
-            if (!fs.existsSync(prNumberFile) || !fs.existsSync(reportFile)) {
-              console.log('Artifact files not found, skipping comment.');
+            if (!fs.existsSync(reportFile)) {
+              console.log('Artifact report not found, skipping comment.');
               return;
             }
 
-            const prNumber = parseInt(fs.readFileSync(prNumberFile, 'utf8').trim(), 10);
+            // Resolve the target PR from the trusted event payload only — never
+            // from the (attacker-controlled) artifact.
+            const run = context.payload.workflow_run;
+            const headSha = run.head_sha;
+            let prNumber = (run.pull_requests || [])
+              .filter(pr => pr.head && pr.head.sha === headSha)
+              .map(pr => pr.number)[0];
+
             if (!prNumber) {
-              console.log('Could not parse PR number, skipping comment.');
-              return;
+              // Fork PRs are not listed in workflow_run.pull_requests, so look
+              // the PR up by its head repo/branch and verify the head SHA.
+              const headRepo = run.head_repository;
+              if (!headRepo || !run.head_branch) {
+                console.log('No head repository/branch on the triggering run, skipping comment.');
+                return;
+              }
+              const pulls = await github.paginate(github.rest.pulls.list, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                state: 'open',
+                head: `${headRepo.owner.login}:${run.head_branch}`,
+                per_page: 100,
+              });
+              const match = pulls.find(
+                pr =>
+                  pr.head.sha === headSha &&
+                  pr.head.repo &&
+                  pr.head.repo.full_name === headRepo.full_name,
+              );
+              if (!match) {
+                console.log(`No open PR matches head SHA ${headSha}, skipping comment.`);
+                return;
+              }
+              prNumber = match.number;
             }
 
-            const report = fs.readFileSync(reportFile, 'utf8');
+            // Treat the report as untrusted data: cap its size, neutralize HTML
+            // comments, @-mentions and code fences, then wrap it in a fenced
+            // block so it cannot forge markers or instructions to other bots.
+            const MAX_REPORT_BYTES = 20000;
+            let report = fs.readFileSync(reportFile, 'utf8');
+            let truncated = false;
+            if (report.length > MAX_REPORT_BYTES) {
+              report = report.slice(0, MAX_REPORT_BYTES);
+              truncated = true;
+            }
+            report = report
+              .replace(/\r/g, '')
+              .replace(/`/g, "'")
+              .replace(/<!--/g, '&lt;!--')
+              .replace(/-->/g, '--&gt;')
+              .replace(/@/g, '@\u200b');
+            if (truncated) {
+              report += '\n[report truncated]';
+            }
+
             const marker = '<!-- translation-regression-bot -->';
-            const body = `${marker}\n${report}`;
+            const body = [
+              marker,
+              'Translation regression detected by the Translations workflow ' +
+                `(commit ${headSha}). Untrusted report output:`,
+              '```text',
+              report,
+              '```',
+            ].join('\n');
 
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
