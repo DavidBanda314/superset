@@ -376,14 +376,18 @@ PROXY_FIX_CONFIG = {"x_for": 1, "x_proto": 1, "x_host": 1, "x_port": 1, "x_prefi
 # Configuration for scheduling queries from SQL Lab.
 SCHEDULED_QUERIES: dict[str, Any] = {}
 
-# FAB Rate limiting: this is a security feature for preventing DDOS attacks. The
-# feature is on by default to make Superset secure by default, but you should
-# fine tune the limits to your needs. You can read more about the different
-# parameters here: https://flask-limiter.readthedocs.io/en/stable/configuration.html
-RATELIMIT_ENABLED = os.environ.get("SUPERSET_ENV") == "production"
+# FAB Rate limiting: this is a security feature for preventing DDOS attacks and
+# brute-forcing of the login form. The feature is on by default to make Superset
+# secure by default, but you should fine tune the limits to your needs. You can
+# read more about the different parameters here:
+# https://flask-limiter.readthedocs.io/en/stable/configuration.html
+# Set RATELIMIT_ENABLED = False to explicitly opt out.
+RATELIMIT_ENABLED = True
 RATELIMIT_APPLICATION = "50 per second"
 AUTH_RATE_LIMITED = True
-AUTH_RATE_LIMIT = "5 per second"
+# Limits applied to the login endpoint. These are sized for interactive logins,
+# not for automated traffic; both limits must be satisfied.
+AUTH_RATE_LIMIT = "5 per minute;20 per hour"
 
 # When enabled, users whose account is flagged with ``password_must_change``
 # (e.g. accounts provisioned by an administrator) are redirected to the
@@ -406,6 +410,10 @@ AUTH_PASSWORD_COMMON_BLOCKLIST: list[str] = []
 
 # A storage location conforming to the scheme in storage-scheme. See the limits
 # library for allowed values: https://limits.readthedocs.io/en/stable/storage.html
+# When unset, Flask-Limiter keeps its counters in per-process memory, so the
+# effective limits are multiplied by the number of web workers and are reset on
+# every restart. Deployments running more than one worker should point this at a
+# shared backend (e.g. Redis) so the limits are enforced globally.
 # RATELIMIT_STORAGE_URI = "redis://host:port"
 # A callable that returns the unique identity of the current request.
 # RATELIMIT_REQUEST_IDENTIFIER = flask.Request.endpoint
