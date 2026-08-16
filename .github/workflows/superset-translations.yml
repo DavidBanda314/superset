@@ -131,14 +131,9 @@ jobs:
             --compare /tmp/before.json \
             --report /tmp/regression-report.md
 
-      # Save the PR number so the comment workflow can post the report without
-      # needing write permissions on this pull_request-triggered job.
-      - name: Save PR number for comment workflow
-        if: >-
-          github.event_name == 'pull_request' &&
-          steps.regression.outcome == 'failure'
-        run: echo "${{ github.event.pull_request.number }}" > /tmp/pr-number.txt
-
+      # Only the report is uploaded: the comment workflow resolves the target PR
+      # from its own trusted workflow_run payload, so no PR number is passed
+      # through this (PR-controlled) artifact.
       - name: Upload regression artifact
         if: >-
           github.event_name == 'pull_request' &&
@@ -146,9 +141,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: translation-regression
-          path: |
-            /tmp/regression-report.md
-            /tmp/pr-number.txt
+          path: /tmp/regression-report.md
 
       - name: Fail if regression detected
         if: steps.regression.outcome == 'failure'
