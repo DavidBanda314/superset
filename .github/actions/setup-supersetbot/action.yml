@@ -5,6 +5,10 @@ inputs:
     description: 'Install from npm instead of local setup'
     required: false
     default: 'true' # Defaults to using the local setup
+  npm-version:
+    description: 'Exact supersetbot version to install from npm (no floating tags)'
+    required: false
+    default: '0.5.44'
 runs:
   using: 'composite'
   steps:
@@ -18,7 +22,12 @@ runs:
       if: ${{ inputs.from-npm == 'true' }}
       shell: bash
       # zizmor: ignore[adhoc-packages] - supersetbot is a first-party Apache CLI (apache-superset/supersetbot) installed globally as a tool; a global CLI install has no application manifest/lockfile context
-      run: npm install -g supersetbot
+      # An exact version is pinned so CI never resolves the floating `latest` tag
+      # in jobs that hold GITHUB_TOKEN / release / registry credentials, and
+      # --ignore-scripts blocks install hooks from the dependency tree.
+      env:
+        SUPERSETBOT_VERSION: ${{ inputs.npm-version }}
+      run: npm install -g --ignore-scripts "supersetbot@${SUPERSETBOT_VERSION}"
 
     - name: "Checkout ${{ github.ref }} ( ${{ github.sha }} )"
       if: ${{ inputs.from-npm == 'false' }}
