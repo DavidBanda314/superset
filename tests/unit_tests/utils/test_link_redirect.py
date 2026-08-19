@@ -18,7 +18,12 @@
 import pytest
 from flask import Flask
 
-from superset.utils.link_redirect import is_safe_redirect_url, process_html_links
+from superset.utils.link_redirect import (
+    is_safe_endpoint_url,
+    is_safe_redirect_url,
+    is_safe_relative_endpoint,
+    process_html_links,
+)
 
 
 @pytest.fixture
@@ -170,3 +175,66 @@ def test_safe_path_with_tab_in_internal_segment(app: Flask) -> None:
     """A tab inside a regular path segment is still a relative URL after
     stripping; it must not flip the result to safe-then-unsafe."""
     assert is_safe_redirect_url("/dashboard/1?from=tab%09inside")
+
+
+# --------------------------------------------------------------------------- #
+# is_safe_endpoint_url / is_safe_relative_endpoint
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "/superset/dashboard/1/",
+        "superset/dashboard/1/",
+        "https://superset.example.com/explore/",
+    ],
+)
+def test_safe_endpoint_url(app: Flask, url: str) -> None:
+    assert is_safe_endpoint_url(url)
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "",
+        "   ",
+        "https://evil.example/superset-login",
+        "//evil.example/x",
+        "/\\evil.example/x",
+        "\\/evil.example/x",
+        "/%09//evil.example",
+        "javascript:alert(1)",
+        "data:text/html,<script>alert(1)</script>",
+    ],
+)
+def test_unsafe_endpoint_url(app: Flask, url: str) -> None:
+    assert not is_safe_endpoint_url(url)
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "/superset/dashboard/1/",
+        "/explore/?viz_type=table",
+    ],
+)
+def test_safe_relative_endpoint(app: Flask, url: str) -> None:
+    assert is_safe_relative_endpoint(url)
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "",
+        "superset/dashboard/1/",
+        "https://superset.example.com/explore/",
+        "https://evil.example/superset-login",
+        "//evil.example/x",
+        "/\\evil.example/x",
+        "/%09//evil.example",
+        "javascript:alert(1)",
+    ],
+)
+def test_unsafe_relative_endpoint(app: Flask, url: str) -> None:
+    assert not is_safe_relative_endpoint(url)

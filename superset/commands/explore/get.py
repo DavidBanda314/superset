@@ -39,6 +39,7 @@ from superset.explore.permalink.exceptions import ExplorePermalinkGetFailedError
 from superset.extensions import security_manager
 from superset.superset_typing import ExplorableData
 from superset.utils import core as utils, json
+from superset.utils.link_redirect import is_safe_endpoint_url
 from superset.views.utils import (
     get_datasource_info,
     get_form_data,
@@ -129,9 +130,14 @@ class GetExploreCommand(BaseCommand, ABC):
         if (
             not viz_type
             and datasource
-            and getattr(datasource, "default_endpoint", None)
+            and (default_endpoint := getattr(datasource, "default_endpoint", None))
         ):
-            raise WrongEndpointError(redirect=datasource.default_endpoint)
+            if is_safe_endpoint_url(default_endpoint):
+                raise WrongEndpointError(redirect=default_endpoint)
+            logger.warning(
+                "Ignoring unsafe default_endpoint on datasource %s",
+                self._datasource_id,
+            )
 
         form_data["datasource"] = (
             str(self._datasource_id) + "__" + cast(str, self._datasource_type)

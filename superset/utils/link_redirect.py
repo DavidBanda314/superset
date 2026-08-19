@@ -159,3 +159,53 @@ def is_safe_redirect_url(url: str) -> bool:
         return False
 
     return parsed.netloc.lower() in base_hosts
+
+
+# Matches authority prefixes that browsers treat as protocol-relative, including
+# the backslash variants (``/\host``, ``\/host``) that the WHATWG URL parser
+# normalizes to forward slashes.
+_AUTHORITY_PREFIX = re.compile(r"^[/\\][/\\]")
+
+
+def is_safe_relative_endpoint(url: str) -> bool:
+    """
+    Return True if *url* is a site-relative path (starts with a single ``/``,
+    has no scheme and no authority component).
+    """
+    if not url or not url.strip():
+        return False
+
+    stripped = _URL_STRIPPED_CONTROL_CHARS.sub("", url.strip())
+
+    if not stripped.startswith("/") or _AUTHORITY_PREFIX.match(stripped):
+        return False
+
+    parsed = urlparse(stripped)
+    return not parsed.scheme and not parsed.netloc
+
+
+def is_safe_endpoint_url(url: str) -> bool:
+    """
+    Return True if *url* is safe to redirect a user to: either a relative URL
+    with no authority component, or an absolute http(s) URL on a configured
+    Superset host.
+    """
+    if not url or not url.strip():
+        return False
+
+    stripped = _URL_STRIPPED_CONTROL_CHARS.sub("", url.strip())
+
+    parsed = urlparse(stripped)
+
+    if not parsed.scheme and not parsed.netloc:
+        # Relative URL: reject anything a browser would read as an authority
+        return not _AUTHORITY_PREFIX.match(stripped)
+
+    if parsed.scheme not in ("http", "https"):
+        return False
+
+    base_hosts = _get_base_hosts()
+    if not base_hosts:
+        return False
+
+    return parsed.netloc.lower() in base_hosts
