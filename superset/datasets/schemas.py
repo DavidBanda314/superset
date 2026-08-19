@@ -34,6 +34,7 @@ from superset.connectors.sqla.models import SqlaTable
 from superset.exceptions import SupersetMarshmallowValidationError
 from superset.models.sql_types import parse_currency_string
 from superset.utils import json
+from superset.utils.link_redirect import is_safe_relative_endpoint
 
 get_delete_ids_schema = {"type": "array", "items": {"type": "integer"}}
 get_export_ids_schema = {"type": "array", "items": {"type": "integer"}}
@@ -55,6 +56,24 @@ openapi_spec_methods_override = {
     },
     "info": {"get": {"summary": "Get metadata information about this API resource"}},
 }
+
+
+def validate_default_endpoint(endpoint: str | None) -> None:
+    """
+    Ensure ``default_endpoint`` is a site-relative path, since it is used as a
+    redirect target when a chart is opened without an explicit ``viz_type``.
+    """
+    if endpoint is None or endpoint == "":
+        return
+    if not is_safe_relative_endpoint(endpoint):
+        raise ValidationError(
+            [
+                _(
+                    "default_endpoint must be a path on this Superset instance, "
+                    "starting with a single '/'"
+                )
+            ]
+        )
 
 
 def validate_python_date_format(dt_format: str) -> bool:
@@ -186,7 +205,9 @@ class DatasetPutSchema(Schema):
     normalize_columns = fields.Boolean(allow_none=True, dump_default=False)
     always_filter_main_dttm = fields.Boolean(load_default=False)
     offset = fields.Integer(allow_none=True)
-    default_endpoint = fields.String(allow_none=True)
+    default_endpoint = fields.String(
+        allow_none=True, validate=validate_default_endpoint
+    )
     cache_timeout = fields.Integer(allow_none=True)
     is_sqllab_view = fields.Boolean(allow_none=True)
     template_params = fields.String(allow_none=True)

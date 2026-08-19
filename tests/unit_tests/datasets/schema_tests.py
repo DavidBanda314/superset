@@ -19,7 +19,10 @@
 import pytest
 from marshmallow import ValidationError
 
-from superset.datasets.schemas import validate_python_date_format
+from superset.datasets.schemas import (
+    validate_default_endpoint,
+    validate_python_date_format,
+)
 
 
 # pylint: disable=too-few-public-methods
@@ -156,3 +159,27 @@ def test_import_v1_metric_schema_parses_currency_string() -> None:
     }
     result = schema.load(data)
     assert result["currency"] == {"symbol": "CAD", "symbolPosition": "suffix"}
+
+
+@pytest.mark.parametrize(
+    "endpoint",
+    [None, "", "/superset/dashboard/1/", "/explore/?viz_type=table"],
+)
+def test_validate_default_endpoint_accepts_relative_paths(endpoint) -> None:
+    validate_default_endpoint(endpoint)
+
+
+@pytest.mark.parametrize(
+    "endpoint",
+    [
+        "https://evil.example/superset-login",
+        "//evil.example/x",
+        "/\\evil.example/x",
+        "/%09//evil.example",
+        "javascript:alert(1)",
+        "superset/dashboard/1/",
+    ],
+)
+def test_validate_default_endpoint_rejects_unsafe_values(endpoint) -> None:
+    with pytest.raises(ValidationError):
+        validate_default_endpoint(endpoint)
