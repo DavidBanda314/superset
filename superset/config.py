@@ -2587,7 +2587,9 @@ DATASET_IMPORT_ALLOWED_DATA_URLS = [r".*"]
 DATASET_IMPORT_ALLOW_INTERNAL_DATA_URLS: bool = False
 
 # Path used to store SSL certificates that are generated when using custom certs.
-# Defaults to temporary directory.
+# Defaults to a private, owner-only (0700) subdirectory of the system temporary
+# directory so that certificates cannot be planted or replaced by other
+# principals sharing that directory.
 # Example: SSL_CERT_PATH = "/certs"
 SSL_CERT_PATH: str | None = None
 

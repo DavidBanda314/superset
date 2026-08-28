@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 import os
+import stat
+import tempfile
 from dataclasses import dataclass
 from typing import Any, Optional
 from unittest.mock import MagicMock, patch
@@ -26,10 +28,11 @@ from flask import current_app
 from pandas.api.types import is_datetime64_dtype
 from pytest_mock import MockerFixture
 
-from superset.exceptions import SupersetException
+from superset.exceptions import CertificateException, SupersetException
 from superset.utils.core import (
     cast_to_boolean,
     check_is_safe_zip,
+    create_ssl_cert_file,
     DateColumn,
     FilterOperator,
     generic_find_constraint_name,
@@ -53,6 +56,7 @@ from superset.utils.core import (
     sanitize_svg_content,
     sanitize_url,
 )
+from superset.utils.hashing import hash_from_str
 from tests.conftest import with_config
 
 ADHOC_FILTER: QueryObjectFilterClause = {
@@ -1847,3 +1851,55 @@ def test_sanitize_cookie_token_accepts_valid(token: str) -> None:
 )
 def test_sanitize_cookie_token_rejects_invalid(token: Optional[str]) -> None:
     assert sanitize_cookie_token(token) is None
+
+
+def test_create_ssl_cert_file_default_dir_is_private() -> None:
+    """
+    Certificates default to an owner-only directory, not the shared temp dir.
+    """
+    from tests.integration_tests.fixtures.certificates import ssl_certificate
+
+    with patch.dict(current_app.config, {"SSL_CERT_PATH": None}):
+        path = create_ssl_cert_file(ssl_certificate)
+
+    assert os.path.dirname(path) != tempfile.gettempdir()
+    assert stat.S_IMODE(os.stat(os.path.dirname(path)).st_mode) & 0o077 == 0
+    assert stat.S_IMODE(os.stat(path).st_mode) & 0o077 == 0
+    with open(path, encoding="utf-8") as cert_file:
+        assert cert_file.read() == ssl_certificate
+
+
+def test_create_ssl_cert_file_replaces_planted_file(tmp_path: Any) -> None:
+    """
+    A pre-existing file whose contents differ from the certificate is replaced
+    instead of being trusted and handed to the database driver.
+    """
+    from tests.integration_tests.fixtures.certificates import ssl_certificate
+
+    cert_dir = tmp_path / "certs"
+    cert_dir.mkdir(mode=0o700)
+    planted = cert_dir / f"{hash_from_str(ssl_certificate)}.crt"
+    planted.write_text("-----BEGIN CERTIFICATE-----\nattacker\n")
+
+    with patch.dict(current_app.config, {"SSL_CERT_PATH": str(cert_dir)}):
+        path = create_ssl_cert_file(ssl_certificate)
+
+    assert path == str(planted)
+    with open(path, encoding="utf-8") as cert_file:
+        assert cert_file.read() == ssl_certificate
+
+
+def test_create_ssl_cert_file_validates_on_cache_hit(tmp_path: Any) -> None:
+    """
+    An invalid certificate is rejected even when a matching file already exists.
+    """
+    invalid = "not a certificate"
+    cert_dir = tmp_path / "certs"
+    cert_dir.mkdir(mode=0o700)
+    (cert_dir / f"{hash_from_str(invalid)}.crt").write_text(invalid)
+
+    with (
+        patch.dict(current_app.config, {"SSL_CERT_PATH": str(cert_dir)}),
+        pytest.raises(CertificateException),
+    ):
+        create_ssl_cert_file(invalid)
