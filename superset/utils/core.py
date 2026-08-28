@@ -30,6 +30,7 @@ import signal
 import smtplib
 import sqlite3
 import ssl
+import stat
 import tempfile
 import threading
 import traceback
@@ -1561,26 +1562,83 @@ def parse_ssl_cert(certificate: str) -> Certificate:
         raise CertificateException("Invalid certificate") from ex
 
 
+def get_ssl_cert_dir() -> str:
+    """
+    Returns the directory used to persist database server certificates.
+
+    When ``SSL_CERT_PATH`` is not configured, a Superset-private subdirectory of
+    the system temporary directory is used instead of the temporary directory
+    itself, so that other principals sharing it cannot plant or replace
+    certificate files. That subdirectory is created with ``0700`` permissions and
+    rejected if it is not owned by the current user or is group/world accessible.
+    A directory configured through ``SSL_CERT_PATH`` is owned by the operator and
+    used as is.
+
+    :return: The path to the certificate directory
+    :raises CertificateException: If the directory cannot be trusted
+    """
+    if cert_dir := app.config["SSL_CERT_PATH"]:
+        os.makedirs(cert_dir, mode=0o700, exist_ok=True)
+        return cert_dir
+
+    suffix = f"-{os.getuid()}" if hasattr(os, "getuid") else ""
+    cert_dir = os.path.join(tempfile.gettempdir(), f"superset-certs{suffix}")
+    os.makedirs(cert_dir, mode=0o700, exist_ok=True)
+
+    stat_result = os.lstat(cert_dir)
+    if not stat.S_ISDIR(stat_result.st_mode):
+        raise CertificateException(
+            f"Certificate directory {cert_dir} is not a directory"
+        )
+    if hasattr(os, "geteuid") and stat_result.st_uid != os.geteuid():
+        raise CertificateException(
+            f"Certificate directory {cert_dir} is not owned by the current user"
+        )
+    if hasattr(os, "getuid") and stat.S_IMODE(stat_result.st_mode) & 0o077:
+        raise CertificateException(
+            f"Certificate directory {cert_dir} is accessible by other users"
+        )
+    return cert_dir
+
+
 def create_ssl_cert_file(certificate: str) -> str:
     """
     This creates a certificate file that can be used to validate HTTPS
     sessions. A certificate is only written to disk once; on subsequent calls,
-    only the path of the existing certificate is returned.
+    the contents of the existing file are verified against the certificate and
+    rewritten if they differ.
 
     :param certificate: The contents of the certificate
     :return: The path to the certificate file
     :raises CertificateException: If certificate is not valid/unparseable
     """
-    filename = f"{hash_from_str(certificate)}.crt"
-    # pylint: disable=import-outside-toplevel
+    # Validate the certificate on every call, including when the file exists
+    parse_ssl_cert(certificate)
 
-    cert_dir = app.config["SSL_CERT_PATH"]
-    path = cert_dir if cert_dir else tempfile.gettempdir()
-    path = os.path.join(path, filename)
-    if not os.path.exists(path):
-        # Validate certificate prior to persisting to temporary directory
-        parse_ssl_cert(certificate)
-        with open(path, "w") as cert_file:
+    filename = f"{hash_from_str(certificate)}.crt"
+    path = os.path.join(get_ssl_cert_dir(), filename)
+
+    try:
+        file_descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    except FileExistsError:
+        with open(path, encoding="utf-8") as cert_file:
+            if cert_file.read() == certificate:
+                return path
+        # The existing file does not hold the expected certificate; replace it
+        # atomically rather than trusting its contents.
+        temporary_descriptor, temporary_path = tempfile.mkstemp(
+            dir=os.path.dirname(path)
+        )
+        try:
+            with os.fdopen(temporary_descriptor, "w", encoding="utf-8") as cert_file:
+                cert_file.write(certificate)
+            os.chmod(temporary_path, 0o600)
+            os.replace(temporary_path, path)
+        except BaseException:
+            os.unlink(temporary_path)
+            raise
+    else:
+        with os.fdopen(file_descriptor, "w", encoding="utf-8") as cert_file:
             cert_file.write(certificate)
     return path
 
