@@ -17,6 +17,7 @@
 
 """Tests for MCP service configuration and branding."""
 
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -486,7 +487,7 @@ def test_create_default_mcp_auth_factory_audience_not_required_for_api_key_only(
     assert isinstance(result, CompositeTokenVerifier)
 
 
-def _dev_auth_app(config: dict, debug: bool = False) -> MagicMock:
+def _dev_auth_app(config: dict[str, Any], debug: bool = False) -> MagicMock:
     """Build a mock Flask app whose config returns ``config`` values."""
     mock_app = MagicMock()
     mock_app.debug = debug
