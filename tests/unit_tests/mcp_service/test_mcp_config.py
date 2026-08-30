@@ -484,3 +484,88 @@ def test_create_default_mcp_auth_factory_audience_not_required_for_api_key_only(
     result = create_default_mcp_auth_factory(mock_app)
 
     assert isinstance(result, CompositeTokenVerifier)
+
+
+def _dev_auth_app(config: dict, debug: bool = False) -> MagicMock:
+    """Build a mock Flask app whose config returns ``config`` values."""
+    mock_app = MagicMock()
+    mock_app.debug = debug
+    mock_app.config.get.side_effect = lambda key, default=None: config.get(key, default)
+    return mock_app
+
+
+def test_validate_dev_auth_config_rejects_non_dev_environment():
+    """Dev-mode auth outside a development deployment must fail closed."""
+    from superset.mcp_service.mcp_config import (
+        MCPAuthConfigError,
+        validate_dev_auth_config,
+    )
+
+    app = _dev_auth_app({"MCP_DEV_USERNAME": "admin"})
+
+    with patch.dict("os.environ", {"SUPERSET_ENV": "production"}, clear=False):
+        with pytest.raises(MCPAuthConfigError, match="MCP_DEV_USERNAME"):
+            validate_dev_auth_config(app, host="127.0.0.1")
+
+
+def test_validate_dev_auth_config_rejects_non_loopback_bind():
+    """Dev-mode auth on a non-loopback bind must fail closed."""
+    from superset.mcp_service.mcp_config import (
+        MCPAuthConfigError,
+        validate_dev_auth_config,
+    )
+
+    app = _dev_auth_app({"MCP_DEV_USERNAME": "admin"}, debug=True)
+
+    with pytest.raises(MCPAuthConfigError, match="loopback"):
+        validate_dev_auth_config(app, host="0.0.0.0")  # noqa: S104
+
+
+def test_validate_dev_auth_config_allows_loopback_dev_with_warning():
+    """A loopback-bound dev deployment is allowed but warns loudly."""
+    from superset.mcp_service.mcp_config import validate_dev_auth_config
+
+    app = _dev_auth_app({"MCP_DEV_USERNAME": "admin"}, debug=True)
+
+    with patch("superset.mcp_service.mcp_config.logger") as mock_logger:
+        validate_dev_auth_config(app, host="localhost")
+
+    mock_logger.warning.assert_called_once()
+
+
+def test_validate_dev_auth_config_explicit_opt_in():
+    """MCP_ALLOW_DEV_AUTH lets the operator accept the risk explicitly."""
+    from superset.mcp_service.mcp_config import validate_dev_auth_config
+
+    app = _dev_auth_app(
+        {"MCP_DEV_USERNAME": "admin", "MCP_ALLOW_DEV_AUTH": True},
+    )
+
+    with patch.dict("os.environ", {"SUPERSET_ENV": "production"}, clear=False):
+        validate_dev_auth_config(app, host="0.0.0.0")  # noqa: S104
+
+
+def test_validate_dev_auth_config_noop_without_dev_username():
+    """No dev username configured means nothing to validate."""
+    from superset.mcp_service.mcp_config import validate_dev_auth_config
+
+    app = _dev_auth_app({})
+
+    with patch("superset.mcp_service.mcp_config.logger") as mock_logger:
+        validate_dev_auth_config(app, host="0.0.0.0")  # noqa: S104
+
+    mock_logger.warning.assert_not_called()
+
+
+def test_validate_dev_auth_config_allows_when_transport_auth_configured():
+    """With transport auth installed the dev fallback is not reachable unauthed."""
+    from superset.mcp_service.mcp_config import validate_dev_auth_config
+
+    app = _dev_auth_app({"MCP_DEV_USERNAME": "admin"})
+
+    with patch.dict("os.environ", {"SUPERSET_ENV": "production"}, clear=False):
+        validate_dev_auth_config(
+            app,
+            host="0.0.0.0",  # noqa: S104
+            auth_provider_configured=True,
+        )

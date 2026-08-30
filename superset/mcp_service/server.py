@@ -886,9 +886,18 @@ def run_server(
         logging.info("Creating MCP app with default configuration...")
         from superset.mcp_service.caching import create_response_caching_middleware
         from superset.mcp_service.flask_singleton import get_flask_app
+        from superset.mcp_service.mcp_config import validate_dev_auth_config
 
         flask_app = get_flask_app()
         auth_provider = _create_auth_provider(flask_app)
+
+        # Refuse to start when MCP_DEV_USERNAME would serve unauthenticated
+        # requests as a privileged user outside a loopback-bound dev deployment.
+        validate_dev_auth_config(
+            flask_app,
+            host=host,
+            auth_provider_configured=auth_provider is not None,
+        )
 
         middleware_list = build_middleware_list()
 
