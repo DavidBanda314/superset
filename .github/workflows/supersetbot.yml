@@ -16,14 +16,44 @@ on:
 jobs:
   supersetbot:
     runs-on: ubuntu-24.04
+    # Commands mutate labels and other issue/PR metadata with the repo token, so
+    # only maintainers (write/admin, verified by the authorization step below)
+    # may invoke them.
     if: >
       github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@supersetbot'))
+      (github.event_name == 'issue_comment' &&
+       contains(github.event.comment.body, '@supersetbot') &&
+       contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association))
     permissions:
       contents: read
       pull-requests: write
       issues: write
     steps:
+      - name: Security Check - Authorize Maintainers Only
+        if: github.event_name == 'issue_comment'
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const actor = context.actor;
+            let level = 'none';
+            try {
+              const { data: permission } =
+                await github.rest.repos.getCollaboratorPermissionLevel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  username: actor,
+                });
+              level = permission.permission;
+            } catch (error) {
+              core.info(`Could not resolve permissions for ${actor}: ${error.message}`);
+            }
+            if (!['write', 'admin'].includes(level)) {
+              core.setFailed(
+                `Unauthorized: ${actor} has '${level}' access; supersetbot ` +
+                  'commands require write or admin access.',
+              );
+            }
+
       - name: Quickly add thumbs up!
         if: github.event_name == 'issue_comment' && contains(github.event.comment.body, '@supersetbot')
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
