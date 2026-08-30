@@ -19,6 +19,33 @@ jobs:
     permissions:
       issues: write
     steps:
+      # Defence in depth: the label is a privileged trigger that spends
+      # DEVIN_SERVICE_API_KEY, so the actor that applied it must have write
+      # access even if some other workflow path allowed the label to be set.
+      - name: Security Check - Authorize Maintainers Only
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const actor = context.actor;
+            let level = 'none';
+            try {
+              const { data: permission } =
+                await github.rest.repos.getCollaboratorPermissionLevel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  username: actor,
+                });
+              level = permission.permission;
+            } catch (error) {
+              core.info(`Could not resolve permissions for ${actor}: ${error.message}`);
+            }
+            if (!['write', 'admin'].includes(level)) {
+              core.setFailed(
+                `Unauthorized: ${actor} has '${level}' access; applying the ` +
+                  "'devin-fix' label requires write or admin access.",
+              );
+            }
+
       - name: Checkout automation scripts
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6.0.1
         with:
