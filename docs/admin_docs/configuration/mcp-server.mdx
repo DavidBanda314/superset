@@ -72,6 +72,12 @@ For local development, tell the MCP server which Superset user to impersonate (t
 MCP_DEV_USERNAME = "admin"
 ```
 
+Dev-mode auth executes every request as this user with no credential, so the
+server refuses to start with `MCP_DEV_USERNAME` set unless the deployment is a
+development one (`SUPERSET_ENV=development` or Flask debug) bound to a loopback
+address, MCP transport auth is configured, or you explicitly set
+`MCP_ALLOW_DEV_AUTH = True`.
+
 ### 3. Connect an AI client
 
 Point your MCP client at the server. For **Claude Desktop**, edit the config file:
@@ -145,6 +151,17 @@ All operations run as the configured user.
 :::warning
 Never use development mode in production. Always enable authentication for any internet-facing deployment.
 :::
+
+Development mode is guarded at startup: when `MCP_DEV_USERNAME` is set and no
+transport auth provider is configured, the MCP server raises
+`MCPAuthConfigError` and refuses to start unless
+
+- `SUPERSET_ENV` is `development`/`debug` (or the Flask app runs in debug mode), **and**
+- `--host`/`MCP_SERVICE_HOST` is a loopback address (`127.0.0.1`, `::1`, `localhost`).
+
+Set `MCP_ALLOW_DEV_AUTH = True` to override the guard and accept the risk of
+serving unauthenticated requests as the configured user. Every startup with
+dev-mode auth active logs a `WARNING` naming the impersonated user.
 
 ### JWT Authentication
 
@@ -500,7 +517,8 @@ All MCP settings go in `superset_config.py`. Defaults are defined in `superset/m
 | `MCP_SERVICE_PORT` | `5008` | Port the MCP server binds to |
 | `MCP_SERVICE_URL` | `None` | Public base URL for MCP-generated links (set this when behind a reverse proxy) |
 | `MCP_DEBUG` | `False` | Enable debug logging |
-| `MCP_DEV_USERNAME` | -- | Superset username for development mode (no auth) |
+| `MCP_DEV_USERNAME` | -- | Superset username for development mode (no auth). Only allowed for a loopback-bound development deployment unless `MCP_ALLOW_DEV_AUTH` is `True` |
+| `MCP_ALLOW_DEV_AUTH` | `False` | Opt in to `MCP_DEV_USERNAME` dev-mode auth outside a loopback-bound development deployment. Leaving this `False` makes the server fail to start rather than serve unauthenticated requests as a privileged user |
 | `MCP_RBAC_ENABLED` | `True` | Enforce Superset's role-based access control on MCP tool calls. When `True`, each tool checks that the authenticated user has the required FAB permission before executing. Disable only for testing or trusted-network deployments. |
 | `MCP_DISABLED_TOOLS` | `set()` | Set of tool names to remove from the MCP server at startup. Disabled tools are never advertised to AI clients during tool discovery. Useful when a custom extension tool should replace a built-in Superset tool. See [Disabling built-in tools](#disabling-built-in-tools). |
 

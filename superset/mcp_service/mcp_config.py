@@ -16,7 +16,9 @@
 # under the License.
 """Default MCP service configuration"""
 
+import ipaddress
 import logging
+import os
 import secrets
 from collections.abc import Callable
 from typing import Any, Dict, Optional, Sequence
@@ -66,6 +68,12 @@ MCP_BUG_REPORT_CONTACT: str | None = None
 
 # MCP Debug mode - shows suppressed initialization output in stdio mode
 MCP_DEBUG = False
+
+# Opt-in escape hatch for MCP_DEV_USERNAME dev-mode auth outside a development,
+# loopback-only deployment. Dev-mode auth executes every request as the
+# configured user without any credential, so it is refused at startup unless
+# this is explicitly set to True.
+MCP_ALLOW_DEV_AUTH = False
 
 # MCP RBAC - when True, tools with class_permission_name are checked
 # against the FAB security_manager before execution.
@@ -391,6 +399,69 @@ def get_mcp_api_key_enabled(app: Flask, *, startup_warning: bool = False) -> boo
             "transport without affecting the FAB REST API."
         )
     return fab_enabled
+
+
+def _is_loopback_host(host: str | None) -> bool:
+    """Whether ``host`` binds the service to the loopback interface only."""
+    if not host:
+        # Empty/None means "all interfaces" for uvicorn/starlette.
+        return False
+    if host in {"localhost", "localhost.localdomain"}:
+        return True
+    try:
+        return ipaddress.ip_address(host.strip("[]")).is_loopback
+    except ValueError:
+        return False
+
+
+def validate_dev_auth_config(
+    app: Flask,
+    host: str | None = None,
+    auth_provider_configured: bool = False,
+) -> None:
+    """Fail closed when dev-mode auth would grant unauthenticated access.
+
+    ``MCP_DEV_USERNAME`` makes every request execute as that user. When no
+    transport auth provider is installed, that means any client able to reach
+    the port acts with the configured user's permissions. Accept it only for a
+    development deployment bound to loopback, or when the operator explicitly
+    opts in with ``MCP_ALLOW_DEV_AUTH = True``.
+
+    Raises:
+        MCPAuthConfigError: If dev-mode auth is active outside a development,
+            loopback-only deployment without an explicit opt-in.
+    """
+    username = app.config.get("MCP_DEV_USERNAME")
+    if not username:
+        return
+
+    if not auth_provider_configured and not app.config.get("MCP_ALLOW_DEV_AUTH", False):
+        is_dev_env = (
+            os.environ.get("SUPERSET_ENV") in {"development", "debug"} or app.debug
+        )
+        if not is_dev_env:
+            raise MCPAuthConfigError(
+                "MCP_DEV_USERNAME is set but the deployment is not a development "
+                "one and no MCP transport auth is configured, so every request "
+                f"would run as '{username}' with no credential. Remove "
+                "MCP_DEV_USERNAME and enable MCP_AUTH_ENABLED or "
+                "MCP_API_KEY_ENABLED, or set MCP_ALLOW_DEV_AUTH = True to "
+                "accept the risk."
+            )
+        if not _is_loopback_host(host):
+            raise MCPAuthConfigError(
+                f"MCP_DEV_USERNAME is set and the service is bound to '{host}', "
+                "which is not a loopback address, so every request reaching the "
+                f"port would run as '{username}' with no credential. Bind to "
+                "127.0.0.1, configure MCP transport auth, or set "
+                "MCP_ALLOW_DEV_AUTH = True to accept the risk."
+            )
+
+    logger.warning(
+        "MCP dev-mode auth is active: unauthenticated requests are executed as "
+        "user '%s' (MCP_DEV_USERNAME). Do not use this in production.",
+        username,
+    )
 
 
 def create_default_mcp_auth_factory(app: Flask) -> Optional[Any]:
