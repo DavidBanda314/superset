@@ -51,6 +51,8 @@ services:
       - ./hadoop-hive.env
     environment:
       HIVE_CORE_CONF_javax_jdo_option_ConnectionURL: "jdbc:postgresql://hive-metastore/metastore"
+      HIVE_SITE_CONF_javax_jdo_option_ConnectionUserName: "${HIVE_METASTORE_USER:?set HIVE_METASTORE_USER}"
+      HIVE_SITE_CONF_javax_jdo_option_ConnectionPassword: "${HIVE_METASTORE_PASSWORD:?set HIVE_METASTORE_PASSWORD}"
       SERVICE_PRECONDITION: "hive-metastore:9083"
     ports:
       - "10000:10000"
@@ -64,6 +66,8 @@ services:
       - ./hadoop-hive.env
     command: /opt/hive/bin/hive --service metastore
     environment:
+      HIVE_SITE_CONF_javax_jdo_option_ConnectionUserName: "${HIVE_METASTORE_USER:?set HIVE_METASTORE_USER}"
+      HIVE_SITE_CONF_javax_jdo_option_ConnectionPassword: "${HIVE_METASTORE_PASSWORD:?set HIVE_METASTORE_PASSWORD}"
       SERVICE_PRECONDITION: "namenode:50070 datanode:50075 hive-metastore-postgresql:5432"
     ports:
       - "9083:9083"

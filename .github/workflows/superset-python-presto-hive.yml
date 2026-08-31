@@ -136,6 +136,10 @@ jobs:
       - name: Give write access to the csv upload directory
         run: sudo chown -R $USER:$USER /tmp/.superset
       - name: Start hadoop and hive
+        # Credentials of the throwaway metastore Postgres image used by the fixture
+        env:
+          HIVE_METASTORE_USER: hive
+          HIVE_METASTORE_PASSWORD: hive
         run: docker compose -f scripts/databases/hive/docker-compose.yml up -d
       - name: Setup Python
         uses: ./.github/actions/setup-backend/
