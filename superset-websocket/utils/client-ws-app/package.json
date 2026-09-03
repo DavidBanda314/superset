@@ -13,5 +13,8 @@
     "jsonwebtoken": "^9.0.3",
     "morgan": "~1.11.0",
     "pug": "~3.0.4"
+  },
+  "overrides": {
+    "qs": "^6.16.0"
   }
 }
