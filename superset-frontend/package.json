@@ -430,6 +430,9 @@
     },
     "lerna": {
       "js-yaml": "^4.3.0"
+    },
+    "@loaders.gl/compression": {
+      "fflate": "^0.7.5"
     }
   },
   "readme": "ERROR: No README data found!",
